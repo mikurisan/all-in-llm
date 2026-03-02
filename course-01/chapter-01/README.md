@@ -111,6 +111,12 @@ RAG 解决了 LLM 的几个局限性:
 
 并不, 现已成为 LLM 开发中的一种基本范式, 并正在快速发展.
 
+## 代码示例
+
+[使用 LangChain 实现一个 RAG demo.  ↩](./code/01_langchain_example.py)
+
+[使用 LLamaIndex 实现一个 RAG demo.  ↩](./code/02_llamaIndex_example.py)
+
 ## 参考文献
 
 [Genesis, J. (2025). Retrieval-Augmented Text Generation: Methods, Challenges, and Applications. ↩](https://www.researchgate.net/publication/391141346_Retrieval-Augmented_Generation_Methods_Applications_and_Challenges)

@@ -66,8 +66,12 @@ from unstructured.partition.pdf import partition_pdf
 
 > 实际应用中, 更多是使用 PaddleOCR, MinerU 等模型或工具处理 pdf.
 
+## 代码示例
+
+[使用 Unstructured 解析 PDF. ↩](./code/01_unstructured_example.py)
+
 ## 参考文献
 
-[Unstructured Open-Source Documentation ↩](https://docs.unstructured.io/open-source/introduction/overview)
+[Unstructured Open-Source Documentation. ↩](https://docs.unstructured.io/open-source/introduction/overview)
 
-[Unstructured Open-Source: Document Elements ↩](https://docs.unstructured.io/open-source/concepts/document-elements)
+[Unstructured Open-Source: Document Elements. ↩](https://docs.unstructured.io/open-source/concepts/document-elements)

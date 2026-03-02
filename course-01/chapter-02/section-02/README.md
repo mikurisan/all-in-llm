@@ -161,6 +161,15 @@ Node Parser 可分为以下几类:
 
 开头的图片就是它生成的.
 
+## 代码示例
+
+[使用 `CharacterTextSplitter` 进行文本分割. ↩](./code/01_character_text_splitter.py)
+
+[使用 `RecursiveCharacterTextSplitter` 进行文本分割. ↩](./code/02_recursive_character_text_splitter.py)
+
+[使用 `SemanticChunker` 进行文本分割. ↩](./code/03_semantic_chunker.py)
+
+
 ## 参考文献
 
 [Nelson F. Liu, et al. (2023). Lost in the Middle: How Language Models Use Long Contexts. ↩](https://arxiv.org/abs/2307.03172)
