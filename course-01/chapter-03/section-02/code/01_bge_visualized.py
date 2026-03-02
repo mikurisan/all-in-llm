@@ -2,7 +2,9 @@ import torch
 from visual_bge.visual_bge.modeling import Visualized_BGE
 
 model = Visualized_BGE(
-    model_name_bge="BAAI/bge-base-en-v1.5",
+    # 模型
+    model_name_bge="BAAI/bge-base-en-v1.5", 
+    # pre-trained 权重文件
     model_weight="./model/Visualized_base_en_v1.5.pth"
 )
 
@@ -15,7 +17,7 @@ with torch.no_grad():
     img_emb_2 = model.encode(image="./data/datawhale02.png")
     multi_emb_2 = model.encode(image="./data/datawhale02.png", text="datawhale开源组织的logo")
 
-# 计算相似度
+# 相似度计算: 使用矩阵乘法计算余弦相似度, 所有 embedded vector 都被标准化
 sim_1 = img_emb_1 @ img_emb_2.T
 sim_2 = img_emb_1 @ multi_emb_1.T
 sim_3 = text_emb @ multi_emb_1.T
