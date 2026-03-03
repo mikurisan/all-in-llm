@@ -74,4 +74,8 @@ Vector database 通常采用 4 层架构 (自顶向下):
 
 - 大项目: 数量超过百万级, 需要高并发, 实时更新, 复杂元数据过滤时, 可考虑 Milvus, Weaviate, Pinecone.
 
-## 4 本地向量
+## 代码示例
+
+[使用 Langchian 封装的 FAISS 完成 vector 的创建, 保存, 加载和查询.  ↩](./code/01_langchain_faiss.py)
+
+[使用 LlamaIndex 完成 vector 的创建, 保存, 并查看保存到本地的 json 文件.  ↩](./code/02_llamaindex_vector.py)

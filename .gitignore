@@ -209,3 +209,5 @@ __marimo__/
 # Custom
 course-01/chapter-03/section-02/code/model/Visualized_base_en_v1.5.pth
 course-01/chapter-03/section-02/code/visual_bge/visual_bge.egg-info
+course-01/chapter-03/section-03/code/faiss_index_store
+course-01/chapter-03/section-03/code/llamaindex_index_store
