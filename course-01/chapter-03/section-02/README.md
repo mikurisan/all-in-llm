@@ -1,6 +1,6 @@
 ## 1 为什么需要多模态嵌入
 
-Text 和 image 的 vector space 维度不同, 而多模态嵌入(Multimodal Embedding)是为了将二者 map 到同一个共享的 vector space.
+Text 和 image 的 vector space 之间是互相隔离的, 而多模态嵌入(Multimodal Embedding)是为了将二者 map 到同一个共享的 vector space.
 
 实现这一目标需要跨模态对齐(Cross-modal Alignment).
 

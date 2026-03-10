@@ -7,3 +7,5 @@
 - [向量数据库](./section-03/README.md)
 
 - [Milvus 实践](./section-04/README.md)
+
+- [索引优化](./section-05/README.md)
