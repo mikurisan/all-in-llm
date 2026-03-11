@@ -5,3 +5,5 @@
 - [chapter-02: 数据准备](./chapter-02/README.md)
 
 - [chapter-03: 索引构建](./chapter-03/README.md)
+
+- [chapter-04: 检索优化](./chapter-04/README.md)

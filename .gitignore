@@ -211,3 +211,5 @@ Visualized_base_en_v1.5.pth
 **/visual_bge.egg-info/
 **/faiss_index_store/
 **/llamaindex_index_store/
+course-01/chapter-04/section-01/code/=1.3.3
+cache
