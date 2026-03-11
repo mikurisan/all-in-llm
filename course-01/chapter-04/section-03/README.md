@@ -25,6 +25,12 @@
 
 4. 错误修正与反思 (Error Correction and Reflection): 生成 sql 后尝试执行, 发生错误后将其返回给 LLM, 让其自行修正后重试.
 
-## 代码示例
+## 参考代码
 
-[实现一个简单的 Text2Sql 框架](./code/README.md)
+[实现一个简单的 Text2Sql 框架](./code/01_text2sql_demo.py)
+
+## 参考文献
+
+[LangChain Docs: Text to SQL. ↩](https://docs.langchain.com/oss/python/langchain/rag)
+
+[RAGFlow Blog: Implementing Text2SQL with RAGFlow. ↩](https://ragflow.io/blog/implementing-text2sql-with-ragflow)

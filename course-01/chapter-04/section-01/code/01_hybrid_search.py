@@ -3,7 +3,7 @@ import json
 import os
 import os
 # 设置 Hugging Face 镜像源环境变量
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+# os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 import numpy as np
 from pymilvus import connections, MilvusClient, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, RRFRanker
