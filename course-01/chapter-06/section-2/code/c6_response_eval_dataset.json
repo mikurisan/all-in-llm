@@ -1,0 +1,36 @@
+{
+    "queries": {
+        "67e9c0fb-2fdf-4258-8342-2bc27af576b6": "According to the citation information, what is the full title of the chapter \"Oceans and Coastal Ecosystems and Their Services\" a part of?",
+        "e16366f4-be63-4167-afab-7b575509b61a": "Who are the two Coordinating Lead Authors listed for this chapter?",
+        "18fa3771-1140-4e1a-bdb2-d1c46c4b9e87": "From the list of Lead Authors, which author is affiliated with both the UK and France?",
+        "5e3a7525-fec9-411d-b403-96d39e6c35b3": "What is the specific page range for this chapter within the larger report, as indicated by the citation?",
+        "632af463-6b8a-45bc-95fb-3acde752b0b6": "Identify one Contributing Author from the provided list who is affiliated with an institution in Fiji.",
+        "ebfcf371-ef5b-4e7a-bac8-eb0d8575a65b": "Who are the two Review Editors named for this chapter?",
+        "98a5b567-d963-444f-a0a1-fd75ba070f2e": "What is the digital object identifier (doi) provided for this chapter?",
+        "91bbb5be-d960-40ef-997c-d19ece82dd1c": "Which country is listed as an affiliation for Lead Author Elena Ojea?",
+        "0d6cb5fd-2be1-4d33-9889-0a20749d8a22": "What is the name of the Chapter Scientist for this chapter?",
+        "55bc6c74-b5c3-44ab-8ace-67c6c1be5fde": "According to the header, what is the page label and chapter number for this section of the document?",
+        "d1d437f7-66d0-405f-8be3-e40058ca96f4": "According to the table of contents, what is the title of Chapter 3 in the IPCC AR6 WGII report?",
+        "2723c792-48dd-4de2-b9c0-9c3ae63a3ef5": "On which page does the section \"3.2.2 Physical Changes\" begin?",
+        "c9818992-bc1a-453a-8d2a-1f664a133b40": "What is the subject of FAQ 3.1 as listed in the table of contents?",
+        "66582390-32fc-4de4-92e9-06d0f01d8375": "Which section addresses \"Acclimation and Evolutionary Adaptation\" in marine organisms?",
+        "412e8e84-608f-4465-9c92-3a7bd1faba6e": "What is the title of Box 3.1, and which main section does it fall under?"
+    },
+    "responses": {
+        "67e9c0fb-2fdf-4258-8342-2bc27af576b6": "According to the citation information, the chapter \"Oceans and Coastal Ecosystems and Their Services\" is part of the publication titled **\"Climate Change 2022: Impacts, Adaptation and Vulnerability. Contribution of Working Group II to the Sixth Assessment Report of the Intergovernmental Panel on Climate Change\"**.",
+        "e16366f4-be63-4167-afab-7b575509b61a": "Based on the provided context, the two Coordinating Lead Authors for the chapter are Sarah R. Cooley (USA) and David S. Schoeman (Australia).",
+        "18fa3771-1140-4e1a-bdb2-d1c46c4b9e87": "From the list of Lead Authors provided, the author affiliated with both the UK and France is **Marie-Fanny Racault (UK/France)**.",
+        "5e3a7525-fec9-411d-b403-96d39e6c35b3": "Based on the citation provided in the context, the specific page range for the chapter is **pp. 379\u2013550**.",
+        "632af463-6b8a-45bc-95fb-3acde752b0b6": "Based on the provided list, one Contributing Author affiliated with an institution in Fiji is **Elisabeth Holland**.",
+        "ebfcf371-ef5b-4e7a-bac8-eb0d8575a65b": "Based on the provided context, the two Review Editors named for this chapter are Karim Hilmi (Morocco) and Lisa Levin (USA).",
+        "98a5b567-d963-444f-a0a1-fd75ba070f2e": "The digital object identifier (DOI) provided for this chapter is 10.1017/9781009325844.005.",
+        "91bbb5be-d960-40ef-997c-d19ece82dd1c": "Based on the context provided, Lead Author Elena Ojea is listed with the affiliation for Spain.",
+        "0d6cb5fd-2be1-4d33-9889-0a20749d8a22": "Based on the provided context, the Chapter Scientist for this chapter is Jessica Bolin (Australia).",
+        "55bc6c74-b5c3-44ab-8ace-67c6c1be5fde": "According to the header provided, the page label is 379 and the chapter number is 3.",
+        "d1d437f7-66d0-405f-8be3-e40058ca96f4": "According to the table of contents provided, the title of Chapter 3 is \"Oceans and Coastal Ecosystems and Their Services.\"",
+        "2723c792-48dd-4de2-b9c0-9c3ae63a3ef5": "Based on the provided context, the section \"3.2.2 Physical Changes\" begins on page **392**.\n\nThe table of contents entry for \"3.2.2 Physical Changes\" is grouped under the major section \"3.2 Observed Trends and Projections of Climatic Impact-Drivers in the Global Ocean\", which begins on page 392.",
+        "c9818992-bc1a-453a-8d2a-1f664a133b40": "Based on the table of contents provided, the subject of FAQ 3.1 is:\n\n**How do we know which changes to marine ecosystems are specifically caused by climate change?**",
+        "66582390-32fc-4de4-92e9-06d0f01d8375": "Based on the provided context, the section that addresses \"Acclimation and Evolutionary Adaptation\" in marine organisms is **Section 3.3.4**, titled \"Acclimation and Evolutionary Adaptation.\"",
+        "412e8e84-608f-4465-9c92-3a7bd1faba6e": "Based on the context provided, the title of Box 3.1 is \"Challenges for Multiple-Driver Research in Ecology and Evolution\".\n\nIt falls under the main section **3.3 Linking Biological Responses to Climate-induced Drivers**."
+    }
+}

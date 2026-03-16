@@ -58,4 +58,7 @@ dependencies = [
     "pyarrow==20.0.0",
     "brotli>=1.1.0",
     "brotlicffi>=1.2.0.1",
+    "spacy>=3.8.11",
+    "langchain-unstructured==0.1.6",
+    "rank-bm25==0.2.2",
 ]
