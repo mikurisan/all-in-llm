@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableBranch
 llm = ChatDeepSeek(
     api_base="https://aihubmix.com/v1",
     model="deepseek-v3.2", 
-    temperature=0, 
+    temperature=0,
     api_key=os.getenv("DEEPSEEK_API_KEY")
     )
 
