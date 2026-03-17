@@ -169,7 +169,6 @@ Node Parser 可分为以下几类:
 
 [使用 `SemanticChunker` 进行文本分割. ↩](./code/03_semantic_chunker.py)
 
-
 ## 参考文献
 
 [Nelson F. Liu, et al. (2023). Lost in the Middle: How Language Models Use Long Contexts. ↩](https://arxiv.org/abs/2307.03172)

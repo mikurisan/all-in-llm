@@ -6,9 +6,11 @@
 
 ## [简单认识 RAG](./chapter-01/README.md)
 
-什么是 RAG? 为什么使用 RAG? 如何上手 RAG?
+如题.
 
-- [chapter-02: 数据准备](./chapter-02/README.md)
+## [数据准备](./chapter-02/README.md)
+
+数据加载, 文本分块.
 
 - [chapter-03: 索引构建](./chapter-03/README.md)
 
