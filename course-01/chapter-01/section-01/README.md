@@ -13,7 +13,7 @@ RAG(Retrieval-Augmented Generation), 即通过 retrieve 外部 knowledge 以增�
 **Retrieval Step**:
 
 - **Knowledge Vectorization**: 通过 Embedding Model 将外部知识 encoded 为向量索引 (index) 存入 vector db.
-- **Semantic Retrieval**: 通过同样的 Embedding Model 将 query 向量化, 通过相似度搜索 (Similarity Search) 从 db 中找到与 query 最 relevant 的 knowledge snippets.
+- **Semantic Retrieval**: 通过同样的 Embedding Model 将 query 向量化, 通过 similarity search 从 db 中找到与 query 最 relevant 的 knowledge snippets.
 
 **Generation Step**:
 
@@ -128,7 +128,7 @@ Architecture 方面有 more complex的 design patterns. 例如可以通过 branc
 
 No, RAG 现已成为 LLM development 的一种 fundamental paradigm, 并正在 rapidly evolving.
 
-## 代码示例
+## 参考代码
 
 [使用 LangChain 实现一个 RAG demo.](./code/01_langchain_example.py)
 

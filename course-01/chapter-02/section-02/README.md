@@ -1,174 +1,201 @@
 ## 1 理解文本分块
 
-将 long document 分割为更小的单元, 作为后续向量检索和 LLM 处理的基本单位.
+将 long document 分割为 smaller units, serve as 后续 vector retrieval 和 LLM processing 的 fundamental units.
 
 ![](./img/image.png)
 
 ## 2 文档分块的重要性
 
-### 2.1 满足 model context 限制
+### 2.1 满足模型上下文限制
 
-- **Embedding Model**: 将文本向量化, 有严格的 input 长度 limit.
+- **Embedding Model**: 将文本 vectorize, 有严格的 input length limitation.
 
-- **LLM**: 通常比 EM 长得多, 但也有 limit .
+- **LLM**: 通常比 embedding model 长得多, 但也有 limitation .
 
 ### 2.2 为何“块”是不是越大越好?
 
-并不是的.
+Not really.
 
-#### 2.2.1 Embedding 中的信息损失
+#### 2.2.1 嵌入过程中的信息损失
 
-大多数 embedding model 基于 transformer, 其大致 work process 如下:
+大多数 embedding model 基于 transformer, 其大致 workflow 如下:
 
-- 分词 (tokenization): 将文本分为一个个 token.
+- **Tokenization**: 将文本 split 为一个个 token.
 
-- 向量化 (vectorization): transformer 为每个 token 生成一个高维向量表示.
+- **Vectorization**: Transformer 为每个 token 生成 a high-dimensional vector representation.
 
-- 池化 (pooling): 通过某种 algorithm 将所有 token vectors 压缩为一个单一 vector, 用于表示整个 chunk 的语义.
+- **Pooling**: 通过某种 algorithm 将所有向量 compresses 为 a single vector, 用于 represent 整个 chunk 的 semantic meaning.
 
-**压缩**过程中必然伴有信息损失. 文本块越长, 语义点越多, 单一 vector 所承载的信息就越稀释, 从而导致其愈加笼统, 关键细节被模糊, 从而降低了检索的精度.
+The compression process 必然伴有 information loss. Text chunk 越长, semantic ponits 越多, a single vector 所承载的 info 就越 diluted, 从而导致其愈加 generalized, key details 被 obscured, 从而降低了 retrieval accuracy.
+
+> Chunk 的 vector 是所有 token vectors 的叠加, 必然伴随着 info loss.
 
 #### 2.2.2 生成过程中的“大海捞针” (Lost in the Middle)
 
-研究表明, 当 LLM 处理非常长, 充满大量信息的 context 时, 其更倾向于记住开头和结尾的信息, 忽略中间部份的信息.
+研究 indicates: 当 LLM 处理 extremely long context 并且 dense with information, 其 exhibit a tendency to 记住 beginning 和 end 的 info, neglecting 信息 in the middle.
 
-如果给 LLM 的 context 又臭又长, 也会导致很难从中提取出最关键的信息, 导致 output 质量的下降或者 hallucination .
+如果给 LLM 的 context 又臭又长, 也会 make it challenging to 从中提取 the most critical info, 导致 answer quality 的 decline, 或者 hallucination 的 increase.
+
+> LLM 的焦点在于 beginning 和 end, 并且过多的 noise 会影响 info 的 extraction.
 
 #### 2.2.3 主题稀释导致检索失败
 
-一个好的 chunk 应聚焦于明确, 单一的 subject . 若包含太多与 subject 不相关的 content, 其语义就会被稀释, 导致无法精准 search.
+An effective chunk 应聚焦于 a clear, single subject. 若包含 too much 与 subject 不相关的 content, 其 semantic representation 就会被 diluted, 导致无法精准 retrieve.
+
+> 从更广义的 subject 角度降低 chunk 中的 noise.
 
 ## 3 基础分块策略
 
-下面介绍 LangChain 几种核心的文本分割器 (Text Splitters) 的 strategy.
+The following sections 介绍 LangChain 中的 text splitters 所使用的几种 core strategies.
 
 ### 3.1 固定大小分块
 
-[`CharacterTextSplitter`](./code/01_character_text_splitter.py#L7), 其主要工作步骤:
+[`CharacterTextSplitter`](./code/01_character_text_splitter.py#L7), 其 primary workflow:
 
-1. **按段落分割**: 采用默认分隔符 `\n\n` 使用正则表达式对 document 进行 split .
+1. **Split by Paragrah**: 采用 the default delimiter `\n\n`, 使用 regular expression matching 的方式对 document 进行 split .
 
-2. **智能合并**: 将 split 后的段落依次合并, 同时监控监控累计长度, 超过阈值时形成新 chunk, 并通过 overlap 机制保持 context 连贯性, 在必要时发出超长块 warning.
+2. **Intelligent Merging**: Sequentially 合并 split paragraph, during this process 监控 cumulative length, 当其超过 predefined threshold 时 form 一个新 chunk, 并通过 overlap mechanism 保持 context continuity. When necessary 发出 excessively long chunk warning.
 
-这里并非严格按照固定 length 进行 split, 其遵循以下原则:
+该 process 并非严格按照 a rigid, fixed length 进行 split, 其 follows 以下 principles:
 
-- 优先保持段落完整性: 当新添加的段落导致总长度超过阈值时, 才结束当前块.
+- **Prioritize Paragraph Integrity**: 当 add 新 paragrah 时 cause 总长度 exceed 阈值时, 才 finalized 当前 chunk.
 
-- 处理超长段落: 若单块长度超过阈值时, 会发出警告, 但仍保留该完整块.
+- **Handle Long Paragraph**: 若 a single chunk 超过 threshold 时, 会发出 warning, 但仍 preserve 该 complete chunk.
 
-该方法的优势在于简单直接, 处理速度快切计算开销小, 劣势在于可能在语义边界处 split, 影响完整性和连贯性.
+This approach 的 **advantages** 在于 simplicity and efficiency, fast processing speed 且 minal computational cost, **drawbacks** 在于可能在 arbitrary semantic boundaries 处 split, 影响 integrity 和 coherence.
 
-通常情况下, 该 strategy 会结合分隔符在段落分界处优先 split, 必要时才强制按大小 split. 该策略在日志分析, 数据预处理等场景中仍具有应用价值.
+In practice, 该 strategy 会结合 delimiter 在对应的 paragrah breaks 处优先 split, when necessary 才按大小 split. 该 strategy 适用于 log analysis, data preprocessing 等追求 efficiency 的 scenarios.
+
+> 设定固定 length 的盒子, 按照 delimiter 将 paragraph 分割, 随后塞进盒子, 塞不下且必要的时候才 split, 不然也可以硬塞. 简单高效直接.
+
+### 示例代码
+
+[使用 `CharacterTextSplitter` 进行文本分割.](./code/01_character_text_splitter.py#L1)
 
 ### 3.2 递归字符分块
 
-[`RecursiveCharacterTextSplitter`](./code/02_recursive_character_text_splitter.py#L7), 其主要算法流程:
+[`RecursiveCharacterTextSplitter`](./code/02_recursive_character_text_splitter.py#L7), 其 primary workflow:
 
-1. **寻找有效分隔符**: 按序从分隔符列表中遍历, 找到第一个在当前文本中存在的分隔符; 如果没有则使用最后一个, 通常是 `""` .
+1. **Find an Effective Separator**: 按序从 delimiter list 中 iterating, 找到 first 在 current text 中存在的 delimiter; 如果 none 则使用 last delimiter, 通常是 `""` (empty string) .
 
-2. **切分与分类处理**: 使用选定的分隔符 split 文本, 然后遍历所有片段:
+2. **Split and Categorize**: 使用 chosen 分隔符 split 文本, 然后 iterating 所有 segments:
 
-    - 片段不超过阈值, 暂存
+    - **Segment Under Threshold**: temporarily stored.
 
-    - 片段超过阈值:
+    - **Segment Over Threshold**:
 
-        - 将暂存的片段合并
+        - Merge 所有 stored segments 为 chunk.
 
-        - 遍历剩余分隔符, 有则 split, 无则直接保留整块
+        - 遍历 remaining separators, 有则 split, 无则 directly 保留为 chunk.
 
-3. **最终处理**: 将剩余的暂存片段合并为最终块.
+3. **Final Processing**: 将 remaining stored segments 合并为 a final chunk.
 
-递归策略能够使用更细粒度的分隔符直到满足大小, 也能一定程度上保留语义程度的完整性.
+Recursive strategy 能够使用 finer-grained delimiter 直到 meet 大小 constraint, 也能在 some extent 保留 semantic coherence.
 
-> 不同的语言其分隔符存在差异, 最好进行相应的配置.
+> 不同的国家语言其 delimiter 存在差异, 最好进行相应的配置.
+
+> “递归字符分块”看着是针对于“固定大小分块”中“可能在 arbitrary semantic boundaries 进行 split”的 drawback 的一种改进.
+
+### 示例代码
+
+[使用 `RecursiveCharacterTextSplitter` 进行文本分割.](./code/02_recursive_character_text_splitter.py)
 
 **编程语言支持**:
 
-`RecursiveCharacterTextSplitter.from_language` 提供了对多种编程语言的 split 支持.
+`RecursiveCharacterTextSplitter.from_language` 提供了对多种 program language 的 split 支持.
 
 ### 3.3 语义分块
 
-`SemanticChunker` 在语义主题发生显著变化的的地方进行划分:
+`SemanticChunker` 在 semantic theme 发生 significant change 的 ponits 进行 split:
 
-1. **句子分割** (Stence Splitting): 根据标准 split 规则 (如句号, 问号, 感叹号) 将 document 分割为 sentence list.
+1. **Stence Splitting**: 根据 standrad split rule (如 periods, question marks and exclamation marks) 将 document 分割为 sentence list.
 
-2. **上下文感知分割** (Context-Aware Embedding): 将 sentence 与其上下的 n 个 sentences 组合进行 embedding.
+2. **Context-Aware Embedding**: 将 sentence 与其上下的 n 个 sentences 组合进行 embedding.
 
-3. **计算语义距离** (Distance Calculation): 计算相邻 sentences 间的余弦距离.
+3. **Distance Calculation**: 计算相邻 sentences 间的 cosine distance.
 
-4. **识别断点** (Breakpoint Identificdation): 分析所有计算出来的距离, 根据一个统计方法确定一个动态阈值, 所有大于该阈值的的点将被识别为 breakpoint.
+4. **Breakpoint Identificdation**: 分析 all computed distances, 根据 a statistical method 确定一个 dynamic threshold, 所有大于 threshold 的 points 将被识别为 breakpoints.
 
-5. **合并成块** (Merging into Chunks): 根据所有 breakpoint 将原始 sentences 序列进行切分后分别合并为 chunks.
+5. **Merging into Chunks**: 根据 all breakpoints 将原始 sentences sequence 进行 split 后, 将各个 part 内的 句子 merge 为 chunks.
+
+> 在结构分割的基础上, 引入了 cosine distance 来计算 semantic breakpoint, 再用 breakpoint 来划分 chunks, 完成从结构划分到语义划分到转换.
 
 #### 断点识别方法
 
-- 百分位法 (percentile): 将所有计算出来的距离值进行排序, 选定某个百分位作为阈值.
+- **百分位法 (Percentile)**: 排序 all computed distance, 选定 a specific percentile 作为 threshold. For example, 默认值为 95th percentile, 这 means 只有 the top 5% 的 points with the most significant semantic differences 被视为 breakpoints.
 
-- 标准差法 (standard deviation): 计算所有距离的平均值和标准差, 选定 “平均值 + N * 标准差“ 作为阈值 (参考高斯分布).
+> 对数据分布没有假设, 只关注排序名次.
 
-- 四分位距法 (interquartile): 使用统计学中的四分位距 (IQR), 选定 “Q<sub>3</sub> + N * IQR“ 作为阈值.
+- **标准差法 (Standard Deviation)**: Calculate 所有 distances 的 mean 和 deviation, 选定"mean + N (3 by default) * standard deviation" 作为 threshold (参考 Gaussian distribution).
 
-- 梯度法 (gradient): 计算距离的变化率(梯度), 然后对梯度应用百分位法. 对于句子间语义联系紧密, 差异值普遍较低的文本 (如法律, 医疗等) 很有效.
+> 适合正态分布, 看看 data 离 mean 有几个 standard deviation; 易被异常值影响.
+
+- **四分位距法 (Interquartile)**: 使用四分位距 (IQR, Interquartile), 选定 “Q<sub>3</sub> + N (1.5 by default) * IQR“ 作为 threshold.
+
+> 关注 50% 正常范围内的 data, 看看哪些 data 离这群正常 data 远; 相对稳健, 不怕极值.
+
+- **梯度法 (Gradient)**: 计算 distances 的 rate of change (gradient), 然后对 gradient应用 percentile method. 对于 sentences 之间语义联系紧密, distance 间差值 generally 较低的 text (如 legal or medical document) 是 effective.
+
+### 示例代码
+
+[使用 `SemanticChunker` 进行文本分割. ↩](./code/03_semantic_chunker.py)
 
 ### 3.4 基于文档结构的分块
 
-对于具有明确结构标记的 document type (如 md, html, latex).
+对于具有 explicit structural markers 的 document type (如 md, html, latex).
 
 #### 以 markdown 为例
 
-实现原理:
+Implementation Principle:
 
-- 定义分割规则: 提供一组标题分隔符与标题层级的映射关系, 比如 `[('#', 'Header 1'), ('##', 'Header 2')]`, 此时 `#` 就是一级 header, `##` 就是二级 header.
+- **Define Segmentation Rules**: Provide 一组 heading delimiters 与 heading level 的 mapping, 比如 `[('#', 'Header 1'), ('##', 'Header 2')]`, 此时 `#` 就是 level-1 header, `##` 就是 level-2 header.
 
-- 内容聚合: 遍历所有内容, 以最细粒度 header 为分隔符对文本进行分割得到文本块, 并将映射关系中的 header 信息(关于该文本块的)作为元数据注入到该文本块中.
+- **Aggregate Content**: Iterate 所有 content, 以 finest-grained heading 为 delimiter 对 text 进行 split 得到 chunk, 并将 mapping 中的所有 header 信息(关于该 chunk 的) 作为元数据 inject into 该 chunk 中.
 
-局限性与组合使用:
+Limitation and Combined Usage:
 
-- 单纯按照 header 分割可能遇到文本块过长的情况, 通常会再分割完之后, 再使用其他分块器例如 `RecursiveCharacterTextSplitter` 将文本块切分得更小, 这样的同时也能保留原本的元数据信息.
+- 单纯按照 header 分割 may 遇到 overly large text chunk 的情况. A common practice 是 spli 之后, 再 apply 其他 chunker 例如 `RecursiveCharacterTextSplitter` 将 chunk 切分得 smaller, 这同时也能 retain 原本的 metadata.
+
+> 标准结构的分割, 并且这假设某些 markers 是有 semantic meaning 的, 因而将 content 其作为 metadata.
 
 ## 4 其他开源框架中的分块策略
 
 ### 4.1 Unstructured: 基于文档元素的智能分块
 
-- 分区 (Partitioning): 将原始文档解析成一系列结构化的 elements, 每个 element 都带有语义标签, 如 title, narrative text, list item.
+- **Partitioning**: 将 raw document 解析成 a sequence of structured elements, 每个 element 都带有 semantic label (e.g. title, narrative text, list item)
 
-- 分块 (Chunking): 将分区后的 elements 作为输入进行组合:
+- **Chunking**: 将 partitioned elements 作为 input 进行 assembly:
 
-  - (默认) 连续组合 elements 直到达到 max characters 阈值; 如果单个 element 超过上限才会对其进行分本分割.
-  - (可选) 在默认方法的基础上, 将 title 视为新章节的开始, 强制开始新 chunk.
+  - Default Method: Sequentially 组合 elements 直到达到 max characters threshold; 如果单个 element 超过 threshold 才会对其 split.
+
+  - Enhanced Option: Building on the default method, 将 title 视为 new chapter/section 的 start, forcing 创建 a new chunk.
+
+> 将 document 解析为 elements, 当然规则在这里没讲, 然后将 elements 组合为 size-constraint chunk.
 
 ### 4.2 LlamaIndex: 面向节点的解析与转换
 
-将 document 解析为一系列 node, 分块是对 nodes 进行 transformation 的一环.
+将 document 解析为 a sequence of node, chunking 是对 nodes 进行 transformation 的一环.
 
-Node Parser 可分为以下几类:
+Node Parser 可 be categorized as follow:
 
-- 结构感知型: 如 `MarkdownNodeParser`, `JSONNodeParser`, `CodeSplitter`, 按源文档结构进行分割.
+- **Structure Aware**: 如 `MarkdownNodeParser` , `JSONNodeParser` , `CodeSplitter` , 按 document 的 inherent structure 进行 split.
 
-- 语义感知型:
+- **Semantic Aware**:
 
-  - `SemanticSplitterNodeParser`: 使用 embedding model 检测 sentences 之间的语义断点, 在语义连续性明显减弱的地方分割, 从而让 chunk 内部尽可能连贯.
+  - `SemanticSplitterNodeParser`: 使用 embedding model 检测 sentences 之间的 semantic breakpoint 并进行 split, 从而让 chunk 内部 maximally coherent.
 
-  - `SentenceWindowNodeParser`: 将 document 拆分为 sentence node, 每个 node 会存储其前后相邻的 n 个 sentences (context); 检索的时候用单个 sentence 进行匹配, 然后将 context text 发送给 LLM.
+  - `SentenceWindowNodeParser`: 将 document 拆分为 individual sentence nodes, 每个 node 会 store 其 preceding and following 的 n 个 sentences (as context); Retrieval 时, 用单个 sentence 进行 matching, 然后将 context 发送给 LLM.
 
-- 常规型: 如 `TokenTextSplitter`, `SentenceSplitter` 等, 提供基于 token 数量或 sentence 边界的常规切分法.
+- **General Purpose**: 如 `TokenTextSplitter`, `SentenceSplitter` 等, provide 基于 token counts 或 sentence boundaries 的 standard segmentation.
 
-灵活的流水线操作: 可以使用各个 node parsers 组合成一道流水线进行处理.
+**Pipeline Flexibility**: Multiple node parsers 可被 chained 为 a processing pipeline.
 
-良好的互操作性: 使用 `LangchainNodeParser` 可以将任何的 LangChain 的 `TextSplitter` 转换为 node parser.
+**Interoperability**: 使用 `LangchainNodeParser` 可将任何的 LangChain 的 `TextSplitter` 转换为 node parser.
 
 ### 4.3 ChunkViz: 简易的可视化分块工具
 
-开头的图片就是它生成的.
-
-## 代码示例
-
-[使用 `CharacterTextSplitter` 进行文本分割. ↩](./code/01_character_text_splitter.py)
-
-[使用 `RecursiveCharacterTextSplitter` 进行文本分割. ↩](./code/02_recursive_character_text_splitter.py)
-
-[使用 `SemanticChunker` 进行文本分割. ↩](./code/03_semantic_chunker.py)
+The image at the top 就是它 generated 的.
 
 ## 参考文献
 
-[Nelson F. Liu, et al. (2023). Lost in the Middle: How Language Models Use Long Contexts. ↩](https://arxiv.org/abs/2307.03172)
+[Nelson F. Liu, et al. (2023). Lost in the Middle: How Language Models Use Long Contexts.](https://arxiv.org/abs/2307.03172)

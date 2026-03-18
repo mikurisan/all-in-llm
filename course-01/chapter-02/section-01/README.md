@@ -11,7 +11,7 @@ The most critical component, 谨记 “Garbage In, Garbage Out”.
 2. **Extract Metadata**: Concurrently 抽取 doc source, page number, and author.
 3. **Structure Data**: Consolidate 上述 2 者为 a unified format.
 
-> 简单的说就是统一"多源异构数据“的 format.
+> 简单的说就是从"多源异构数据“中抽取 textual content 并统一 format.
 
 ### 1.2 主流加载器
 
@@ -60,7 +60,7 @@ The most critical component, 谨记 “Garbage In, Garbage Out”.
 |  UncategorizedText | 	未分类的自由文本 | 
 | CompositeElement | 	分块处理时产生的复合元素* | 
 
-`CompositeElement` 是通过 chunking 产生的 special element type, 由 one or more contiguous text elements 组合而成. For example, 多个 list items 可能会被combined 为 a single chunk.
+`CompositeElement` 是通过 chunking 产生的 special element type, 由 one or more contiguous text elements 组合而成. For example, 多个 list items 可能会被 combined 为 a single chunk.
 
 ## 3 从 LangChain 封装到原始 `Unstructured`
 
@@ -81,6 +81,6 @@ from unstructured.partition.pdf import partition_pdf
 
 ## 参考文献
 
-[Unstructured Open-Source Documentation. ↩](https://docs.unstructured.io/open-source/introduction/overview)
+[Unstructured Open-Source Documentation.](https://docs.unstructured.io/open-source/introduction/overview)
 
-[Unstructured Open-Source: Document Elements. ↩](https://docs.unstructured.io/open-source/concepts/document-elements)
+[Unstructured Open-Source: Document Elements.](https://docs.unstructured.io/open-source/concepts/document-elements)
