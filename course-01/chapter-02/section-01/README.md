@@ -62,6 +62,10 @@ The most critical component, 谨记 “Garbage In, Garbage Out”.
 
 `CompositeElement` 是通过 chunking 产生的 special element type, 由 one or more contiguous text elements 组合而成. For example, 多个 list items 可能会被 combined 为 a single chunk.
 
+### 示例代码
+
+[使用 Unstructured 解析 PDF.](./code/01_unstructured_example.py)
+
 ## 3 从 LangChain 封装到原始 `Unstructured`
 
 "Chapter 1" 中使用了 LangChain 对 `Unstructured` 进行封装的 [UnstructuredMarkdownLoader](../../chapter-01/section-01/code/01_langchain_example.py#L13), 这里是其 [native usage ](./code/01_unstructured_example.py)
@@ -74,10 +78,6 @@ from unstructured.partition.pdf import partition_pdf
 ```
 
 > 实际应用中, 更多是使用 PaddleOCR, MinerU 等 model 或 tool 处理 pdf.
-
-## 代码示例
-
-[使用 Unstructured 解析 PDF.](./code/01_unstructured_example.py)
 
 ## 参考文献
 

@@ -138,7 +138,7 @@ Recursive strategy 能够使用 finer-grained delimiter 直到 meet 大小 const
 
 ### 示例代码
 
-[使用 `SemanticChunker` 进行文本分割. ↩](./code/03_semantic_chunker.py)
+[使用 `SemanticChunker` 进行文本分割.](./code/03_semantic_chunker.py)
 
 ### 3.4 基于文档结构的分块
 
