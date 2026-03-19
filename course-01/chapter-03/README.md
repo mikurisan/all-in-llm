@@ -6,9 +6,11 @@
 
 ## [向量嵌入](./section-01/README.md)
 
-向量嵌入基础, Embedding 技术发展, 嵌入模型训练原理, 嵌入模型选型指南
+向量嵌入基础, Embedding 技术发展, 嵌入模型训练原理, 嵌入模型选型指南.
 
-- [多模态嵌入](./section-02/README.md)
+## [多模态嵌入](./section-02/README.md)
+
+为什么需要多模态嵌入, CLIP 模型浅析, 常用多模态嵌入模型.
 
 - [向量数据库](./section-03/README.md)
 

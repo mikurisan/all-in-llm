@@ -1,6 +1,7 @@
 import requests
 from pathlib import Path
 
+
 def download_visualized_bge_model():
     """
     下载 Visual BGE 模型权重文件
