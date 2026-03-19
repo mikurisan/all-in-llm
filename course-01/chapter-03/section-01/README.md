@@ -4,170 +4,188 @@
 
 #### 1.1.1 什么是 Embedding
 
-将各种数据对象转换为稠密的连续数值 vector 表示.
+将 various data objects 转换为 dense, continuous numerical vector representations.
 
 ![](./img/image-01.png)
 
-从而在一个高维 vector space 中得到一个对象的坐标表示.
+Consequently, 在一个 high-dimensional vector space 中得到 an object 的 coordinate representation.
 
-向量的维度通常在几百到几千之间.
+The dimensionality 通常 range from hundreds to several thousand.
 
 #### 1.1.2 向量空间的语义表示
 
-Embedding 是对数据语义的编码:
+Embedding 是对 semantic of data 的 encoding:
 
-- **核心原则**: 在 vector space 中语义上相似的 object 其空间距离应该是相近的, 反之则更远.
+**Core Principle**: 在 vector space 中 semantically similar objects 应拥有 close spatial proximity, while 则应该 farther apart.
 
-- **关键度量**: 通过以下度量来表示 vector 之间的“距离”或者“相似度”:
+**Key Metrics**: 通过 following metrics 来表示 vector 之间的 distance 或者 similarity:
 
-  - 余弦相似度 (Cosine Similarity): 计算 vector 间夹角的余弦值, 越接近于 1 代表方向越一致, 语义越相似. (最常用)
+  - **Cosine Similarity**: 计算 vector 间 cosine of the angle, 越 close to 1 代表 more aligned direction, greater semantic similarity. (Most commonly used)
 
-  - 点积 (Dot Product): 计算两个向量的乘积和. vector 归一化后, 等价于 cosine similarity.
+  - **Dot Product**: 计算 the sum of the products of corresponding vector components. 当 normalized 后, 等价于 cosine similarity.
 
-  - 欧式距离 (Euclidean Distance): 计算 vector 在 space 中的直线 distance, 越小语义越相似.
+  - **Euclidean Distance**: 计算 vector 在 space 中的直线 distance, 越小语义越相似.
+
+> cosine similarity 只关心方向, dot product 关心方向和长度 (投影), euclidean distance 关注绝对距离.
 
 ### 1.2 Embedding 在 RAG 中的作用
 
 #### 1.2.1 语义检索的基础
 
-通用 process 如下:
+A typical workflow 如下:
 
-- **离线索引构建**: document 被 split 后, embedding model 将各个 chunks 转换为 vectors 存入专门的 vector database.
+- **Offline Index Construction**: Documents 被 split 后, embedding model 将各个 chunk 转换为 vector 存入 dedicated vector database.
 
-- **相似度计算**: 在 vb 中计算 query vector 与所有 chunk vector 的 similarity.
+- **Similarity Calculation**: 在 vector database 中计算 query vector 与所有 chunk vectors 的 similarity.
 
-- **召回上下文**: 选取 similarity 最高的 top-k 个 chunks, 作为补充的 context 与原始 query 一同传给 LLM.
+- **Context Retrieval**: 选取 similarity 最高的 top-k 个 chunks, 作为 supplementary context 与 original query 一同传给 LLM.
+
+> 让 vector 作为 retrieval 到媒介, 在 query 与 docuemnt 之间建立了 relationship.
 
 #### 1.2.2 决定检索质量的关键
 
-Embedding 决定了 RAG 检索召回内容的准确性与相关性. 最好能够做到捕捉 query 与 chunks 之间的深层语义联系, 即使 query 与原文的表述并不完全一致; 相反, 如果因为 embbeding 无法理解语义而无法或错误召回则会污染 context.
+Embedding 决定了 retrieval 的 accuracy 和 relevance.
 
-## Embedding 技术发展
+In the best scenario, embedding 最好能 capture 在 query 与 chunk 之间的 deep semantic relationship, 即使二者的 words 并不完全 match.
 
-与 NLP 的进步紧密相连, 尤其当 RAG 出现后对其技术要求更高.
+In the worst-case scenario, embedding 无法理解 underlying semantic meaning, incorrect or irrelevant content 被 retrieved, 从而 给 context 引入 noise.
+
+> Retrieval 的角度分为字面层面和语义层面, 二者并不 100% 相等的.
+
+## 2 Embedding 技术发展
+
+与 NLP 的 advancements 紧密相连, 尤其当 RAG 出现后, 对其 capabilities 要求 more higher.
 
 ### 2.1 静态词嵌入: 上下文无关的表示
 
-- **代表模型**: Word2Vec (2013), GloVe (2014)
+- **Representative Models**: Word2Vec (2013), GloVe (2014)
 
-- **主要原理**: 为词汇表中的每个 word 生成一个固定的, 与 context 无关的 vector
+- **Main Principle**: 为 vocabulary 中的每个 word 生成 a fixed, independent of its context 的 vector
 
-- **局限性**: 无法处理一词多义问题
+- **Limitation**: 无法处理 the issue of polysemy (words with multiple meanings.)
+
+> 通过 training 算好了 word vectors, 要使用的时候直接 lookup 即可.
 
 ### 2.2 动态上下文嵌入
 
-2017 年 Transformer 架构引入 Self-Attention, 允许 model 生成 word vector 时考虑sentence 中其他 words 的影响. 2018 年 BERT 使用 Transformer 的 encoder 通过掩码模型 (MLM) 等自监督任务进行 pre-train, 生成了深度 context 相关的 embedding. 
+**2017 Transformer & Self-Attention**: 使得 word vectors 的生成会受到 the same sentence 中其他 words 的 influence.
 
-这意味着一个 word 在不同语境下会生成不同的 vector, 从而解决了一词多义问题.
+**2018 BERT**: 使用 Transformer 中的 encoder 通过 MLM 进行 pre-training, 来生成 deeply contextualized embeddings.
+
+**Impact**: A single word 在不同 context 中有不同的 vector representation, 从而解决 the polysemy problem.
+
+> 将包含 words 的 sentence 进行动态嵌入 (实时推理的), 最后得到每个位置的 word 及其对应的 vector.
 
 ### 2.3 RAG 对 Embedding 的新要求
 
-- **领域自适应能力**: 通用 embedding model 在特定领域中的表现往往不佳, 这要求 em 能够具备领域自适应的能力, 比如通过微调或使用指令的方式来适应特定领域的术语和语义.
+- **Domain Adaptation Capability**: General-purpose embedding models 在 specialized domains 往往 underperform. Threfore, embedding model 具备一定的领域自适应能力. 比如通过 fine-tuning 或 guided instructions 的方式来 align with 特定领域的 terminology and semantic.
 
-- **多粒度与多模态支持**: 能够处理如长文档, 代码, 图像甚至表格等不同长度和类型的输入数据.
+- **Multi-granularity and Multimodal Support**: 能够处理 data of varying lengths and types, 例如 long documents, code, images, 甚至是 tabular data.
 
-- **检索效率与混合检索**: embedding vector 的维度和 model 的大小直接影响存储成本和检索速度; 同时, 为了结合语义相似性(密集检索)和关键词匹配(稀疏检索)的优点, 支持混合检索的 embedding model 应运而生.
+- **Retrieval Efficiency**: The dimensionality of embedding vectors 和 the size of the model 直接影响 storage costs 和 retrieval speed.
+
+- **Hybrid Retrieval**: 为了 leverage 语义 similarity (dense retrieval) 和 keyword matching (sparse retrieval) 二者的 strengths, 支持 hybrid retrieval 的 model 应运而生.
 
 ## 3 嵌入模型训练原理
 
-现代 embedding model 的核心通常是 transformer 的 encoder 部份.
+现代 embedding model 的核心通常是 transformer 的 encoder 部分.
 
 ### 3.1 主要训练任务
 
-主要是自监督学习的策略, 允许 model 从海量无标注的文本数据中学习知识.
+Primarily 为 self-supervised learning, 允许 model 从 vast amounts of unlabled text data 中 internalize knowledge.
 
-**任务1: 掩码语言模型 (Masked Language Model, MLM)**
+**Task 1: Masked Language Model (MLM)**
 
-过程: 
+Procedure: 
 
-- 随机将 input sentences 中的 15% 的 tokens 替换为一个特殊的 `[MASK]` 标记.
+- Randomly 将 input sentences 中的 15% 的 tokens 替换为 a special `[MASK]` token.
 
-- 让 model 去预测被遮盖的原始 token 是什么.
+- 让 model 去 predict 被 masked 的 original token 是什么.
 
-目标: 让 model 学习每个 tokens 与其 context 之间的关系, 从而理解深层次的语境语义.
+Objective: 让 model 学习每个 tokens 与其 context 间的 relationship, 从而 grasp 深层次的 contextual semantics.
 
-**任务2: 下一句预测 (Next Sentence Prediction, NSP)**
+**任务2: Next Sentence Prediction (NSP)**
 
-过程:
+Procedure:
 
-- 构造训练样本, 每个样本包含 sentence a 和 sentence b.
+- Construct 训练 samples, 每个 sample 包含 (Sentence A 和 Sentence B).
 
-- 其中 50% 的样本, sentence b 是真实的下一句 (IsNext); 另外 50% 则是从语料库中随机抽取的 (NotNext).
+- 其中 50% 的 samples, Sentence B 是 actual next sentence (IsNext); 另外 50% 则是从 corpus 中randomly 抽取的 (NotNext).
 
-目标: 让 model 学习 sentence 之间的逻辑关系, 连贯性和主题相关性.
+Objective: 让 model 学习 sentence 之间的 logical relationships, coherence 和 topical relevance.
 
-重要说明: NSP 在后续研究中被发现可能过于简单, 甚至损坏 model 的性能, 因此很多现代的 embedding model 在 pre-train 阶段移除了 NSP.
+**Important Note**: NSP 在 subsequent research 中被found 可能 too simplistic, 甚至损坏 model 的 performance. Consequently, many modern embedding model 在 pre-training stage 移除了 NSP.
 
 > 了解更多细节: [BERT 架构及其应用](https://github.com/datawhalechina/base-llm/blob/main/docs/chapter5/13_Bert.md)
 
+> 从 word 和 sentence 的层面分别进行 learning.
+
 ### 3.2 效果增强策略
 
-现代 embedding model 通常会引入更针对性的训练策略以增强在检索任务中的表现.
+现代 embedding model 通常会引入 specifically tailored training strategies 以 enhance 在 retrieval task 中的 performance.
 
-**度量学习 (Metric Learning)**
+**Metric Learning**
 
-- 思想: 直接以 similarity 为优化目标
+- **Idea**: Directly 以优化 similarity 为 target.
 
-- 方法: 用大量相关的文本对 (如问题和答案, 标题和正文) 训练以优化 vector space 中的相对距离, 让正例对在 space 中拉近, 负例对推远. 这里并非绝对的相似度, 因为追求极端值可能导致过拟合.
+- **Method**: 用 large-scale relevant text pairs (e.g., question-answer, title-content) 训练, 以optimize 向量空间中的 relative distances. 让 positive pairs 在 space 中拉近, negative pairs 推远. 这里并非 pursuing 绝对的 similarity, 因为 extreme values 可能导致 overfitting.
 
-**对比学习 (Contrastive Learning)**
+**Contrastive Learning**
 
-- 思想: 在 vector space 中将相似样本拉近, 不相似样本推远.
+- **Idea**: 在 vector space 中将 similar samples 拉近, dissimilar samples 推远.
 
-- 方法: 构建 3 元组(Anchor, Positive, Negative), 其中 anchor 与 positive 是相关的, 与 negative 是不想关的. 训练的目的是让 distance(anchor, positive) 尽量小, distance(anchor, negative) 尽量大.
+- **Method**: 构建 triplets (Anchor, Positive, Negative), 其中 anchor 与 positive 是 relevant 的, 与 negative 是 irrelevant 的. Trainning objective 是让 distance(anchor, positive) 尽量小, distance(anchor, negative) 尽量大.
+
+> 针对性地增强两个相关 part 之间的 similarity.
 
 ## 4 嵌入模型选型指南
 
-### 4.1 从 [MTEB](https://huggingface.co/spaces/mteb/leaderboard) 排行榜开始
+### 4.1 从 [MTEB](https://huggingface.co/spaces/mteb/leaderboard) rankings 开始
 
 ![](./img/image-02.png)
 
-MTEB (Massive Text Embedding Benchmark) 是由 Hugging Face 维护的, 全面的 Embedding Model 评测基准. 涵盖了分类, 聚类, 检索, 排序等多种任务.
+MTEB (Massive Text Embedding Benchmark) 是由 Hugging Face 维护的, a comprehensive evaluation benchmark for embedding models. 涵盖了 classification, clustering, retrieval and reranking.
 
 ![](./img/image-03.png)
 
-上图提供了选择开源 Embedding Model 需要权衡的 4 个核心维度:
+The char above 提供了 open-source embedding model 需要权衡的 4 个 key dimensions:
 
-- 横轴 - 模型参数量 (Number of Parameters): 代表 model 的大小, 越大潜在能力越强, 对计算资源的要求也越高.
+- **Horizontal Axis (Number of Parameters)**: 代表 model size, 越大 potential capability 越强, 也需要更多的 computational resources.
 
-- 纵轴 - 平均任务得分 (Mean Task Score): 代表 model 的综合性能, 越大说明 model 在各种 NLP 任务上的平均表现更佳, 通用语义理解能力更强.
+- **Vertical Axis (Mean Task Score)**: 代表 model 的 overall performance, 越大说明 model 在各种 NLP task 上的 average performance 更佳, general semantic understanding capability 更强.
 
-- 气泡大小 - 嵌入维度 (Embedding Size): 代表 model 输出 vector 的维度, 越大维度越高, 理论上能编码更丰富的语义细节, 当然也更消耗计算和存储资源.
+- **Bubble Size (Embedding Size)**: 代表 model 输出 vector 的 dimensionality, higer dimensionality 理论上能 encode 更丰富的 semantic details, 当然也更消耗 computational and storage resources.
 
-- 气泡颜色 - 最大处理长度 (Max Tokens): 代表 model 能处理的文本长度上限.
+- **Bubble Color (Max Tokens)**: 代表 model 能 process 的 maximum text length.
 
-需要注意的是, 榜单上的 score 是在通用数据集上评测的, 可能无法反应在特定业务场景下的表现.
+**Importang Note**: Benchmark 的 score 是在 general-purpose datasets 上 evaluated, 可能无法 reflect 在 specific business scenarios 的 performance.
 
 ### 4.2 关键评估维度
 
-除了 score 更需关注以下几个维度:
+Additional dimension to consider:
 
-- 任务 (Task): 对于 RAG 更需关注 model 在 retrieval task 下的排名.
+- **Task**: 对于 RAG 更需关注 model 在 retrieval task 下的 ranking.
 
-- 语言 (Language): 有些 model 并不是所有 language 都支持的.
+- **Language**: 有些 model 并不是 all language 都 support 的.
 
-- 模型大小 (Size): model 越大, 通常性能越好, 推理速度越慢, 性能要求越高.
+- **Score & Publisher**: 考虑 model 的 score 与 publisher 的 reputation.
 
-- 维度 (Dimensions): 维度高, 能编码的信息越丰富, 也占用更多的资源和空间.
-
-- 最大 token 数 (Max Tokens): 决定了 model 能处理的文本长度上限.
-
-- 得分与机构 (Score & Publisher): 考虑 model 的 score 与 publisher 的声誉.
-
-- 成本 (Cost): 调用 api 考虑价格, 自部署考虑硬件资源的消耗和运维成本.
+- **Cost**: 调用 api 考虑 price, self-hosting 考虑 hardware resouce consumpation 和 maintenance and operational cost.
 
 ### 4.3 迭代测试与优化
 
-不要只依赖公开榜单.
+不要 rely solely on 公开 leaderboards.
 
-1. 确定基线 (Baseline): 根据上述维度选择几个作为初始基准 models.
+1. **Establish a Baseline**: 根据 aforementioned criteria 选择 several candidate models 作为 initial benchmarks.
 
-2. 构建私有评测集: 根据真实业务数据, 创建一批高质量的 QA 样本集.
+2. **Build a Private Evaluation Dataset**: 根据 authentic business data, create 一批 high-quality QA samples.
 
-3. 迭代优化: 使用基准 models 在样本集上运行, 进行一定的 RAG 调优, 评估其召回的准确率和相关性, 最后选择最佳的 model.
+3. **Iterate and Optimize**: 使用 baseline models 在 dataset 运行, 进行一定的 RAG 调优, 评估其 recall 的 accuracy 和 relevance, ultimately 选择 optimal model.
+
+> 根据业务和数据选择适合的 model, 并尽量考虑 cost.
 
 ## 参考文献
 
-[Lewis et al. (2020). Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks ↩](https://arxiv.org/abs/2005.11401)
+[Lewis et al. (2020). Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.](https://arxiv.org/abs/2005.11401)
 
-[RoBERTa: A Modified BERT Model for NLP ↩](https://www.comet.com/site/blog/roberta-a-modified-bert-model-for-nlp/)
+[RoBERTa: A Modified BERT Model for NLP.](https://www.comet.com/site/blog/roberta-a-modified-bert-model-for-nlp/)
