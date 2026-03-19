@@ -28,10 +28,23 @@
 
 ## 必要提醒
 
+### 配置模型 API
 运行 code 前引入以下 env variables:
 
 ```shell
 export BASE_URL=""
 export API_KEY=""
 export MODEL_NAME=""
+```
+
+### 安装模型
+
+```shell
+cd /opt/repo/all-in-llm/course-01/model/visual_bge
+
+uv pip install -e .
+
+cd /opt/repo/all-in-llm/course-01/model
+
+python download_model.py
 ```

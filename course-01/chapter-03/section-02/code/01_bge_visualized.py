@@ -1,11 +1,11 @@
 import torch
-from visual_bge.visual_bge.modeling import Visualized_BGE
+from visual_bge.modeling import Visualized_BGE
 
 
 # 加载 model 和 weight
 model = Visualized_BGE(
     model_name_bge="BAAI/bge-base-en-v1.5", 
-    model_weight="./model/Visualized_base_en_v1.5.pth"
+    model_weight="../../../model/weight/Visualized_base_en_v1.5.pth"
 )
 
 # 将 model 切换到推测/测试模式
