@@ -12,7 +12,9 @@
 
 为什么需要多模态嵌入, CLIP 模型浅析, 常用多模态嵌入模型.
 
-- [向量数据库](./section-03/README.md)
+## [向量数据库](./section-03/README.md)
+
+向量数据库的作用, 工作原理, 主流向量数据库介绍,.
 
 - [Milvus 实践](./section-04/README.md)
 
