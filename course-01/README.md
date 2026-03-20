@@ -14,9 +14,11 @@
 
 ## [索引构建](./chapter-03/README.md)
 
-向量嵌入, 多模态嵌入, 向量数据库, Milvus 实践, 
+向量嵌入, 多模态嵌入, 向量数据库, Milvus 实践, 索引优化.
 
-- [chapter-04: 检索优化](./chapter-04/README.md)
+## [检索优化](./chapter-04/README.md)
+
+
 
 - [chapter-05: 生成集成](./chapter-05/README.md)
 

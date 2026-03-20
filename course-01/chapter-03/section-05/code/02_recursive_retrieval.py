@@ -14,9 +14,9 @@ load_dotenv()
 
 # 配置模型
 Settings.llm = OpenAI(
-    model="gpt-4o-mini",
-    api_key=os.getenv("AIHUBMIX_API_KEY"),
-    api_base="https://aihubmix.com/v1"
+    model=os.getenv("MODEL_NAME"),
+    api_key=os.getenv("API_KEY"),
+    api_base=os.getenv("BASE_URL")
 )
 Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-zh-v1.5")
 
@@ -30,7 +30,7 @@ all_nodes = []
 for sheet_name in xls.sheet_names:
     df = pd.read_excel(xls, sheet_name=sheet_name)
     
-    # 为当前工作表（DataFrame）创建一个 PandasQueryEngine
+    # 为当前工作表 (DataFrame) 创建一个 PandasQueryEngine
     query_engine = PandasQueryEngine(df=df, llm=Settings.llm, verbose=True)
     
     # 为当前工作表创建一个摘要节点（IndexNode）
@@ -61,8 +61,7 @@ recursive_retriever = RecursiveRetriever(
 query_engine = RetrieverQueryEngine.from_args(recursive_retriever)
 
 # 5. 执行查询
-# query = "1994年评分人数最少的电影是哪一部？"
-query = "推荐一部电影给我"
+query = "1994年评分人数最少的电影是哪一部？"
 
 print(f"查询: {query}")
 response = query_engine.query(query)

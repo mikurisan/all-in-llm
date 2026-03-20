@@ -7,9 +7,9 @@ from llama_index.core.postprocessor import MetadataReplacementPostProcessor
 
 # 1. 配置模型
 Settings.llm = OpenAI(
-    model="gpt-4o-mini",
-    api_key=os.getenv("AIHUBMIX_API_KEY"),
-    api_base="https://aihubmix.com/v1"
+    model=os.getenv("MODEL_NAME"),
+    api_key=os.getenv("API_KEY"),
+    api_base=os.getenv("BASE_URL")
 )
 
 Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-en")

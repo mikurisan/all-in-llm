@@ -12,9 +12,9 @@ load_dotenv()
 
 # 配置模型
 Settings.llm = OpenAI(
-    model="gpt-4o-mini",
-    api_key=os.getenv("AIHUBMIX_API_KEY"),
-    api_base="https://aihubmix.com/v1"
+    model=os.getenv("MODEL_NAME"),
+    api_key=os.getenv("API_KEY"),
+    api_base=os.getenv("BASE_URL")
 )
 Settings.embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-small-zh-v1.5")
 
@@ -90,7 +90,7 @@ def query_safe_recursive(query_str):
             filters=[ExactMatchFilter(key="sheet_name", value=matched_sheet_name)]
         )
     )
-    
+
     # 创建查询引擎并执行查询
     query_engine = RetrieverQueryEngine.from_args(content_retriever)
     response = query_engine.query(query_str)
@@ -99,8 +99,7 @@ def query_safe_recursive(query_str):
     return response
 
 # 4. 执行查询
-# query = "1994年评分人数最少的电影是哪一部？"
-query = "推荐一部电影给我看"
+query = "1994年评分人数最少的电影是哪一部？"
 response = query_safe_recursive(query)
 
 print(f"最终回答: {response}")
