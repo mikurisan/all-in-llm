@@ -8,7 +8,7 @@ To quickly and accurately 从  vector 中找到与 query 最相似的 top-n.
 
 - **Similarity Search** (Most important): 利用 spcialized indexing techniques (e.g. HNSW, IVF) 在 billions of vectors 中实现 ms 级的 Approximate Nearest Neighbor (ANN) query.
 
-- **Storage and Management of High-Dimensional Vectors**: Dimensions 可达成 hundreds or thousands, 支持 CRUD operation.
+- **Storage and Management of High-Dimensional Vectors**: Dimensions 可达 hundreds or thousands, 支持 CRUD operation.
 
 - **Query Capability**: 支持按 scalar fields 过滤查询, range queries, cluster analysis 等.
 
@@ -76,6 +76,6 @@ Selection Recommendations:
 
 ## 参考代码
 
-[使用 Langchian 封装的 FAISS 完成 vector 的创建, 保存, 加载和查询.  ↩](./code/01_langchain_faiss.py)
+[使用 Langchian 封装的 FAISS 完成 vector 的创建, 保存, 加载和查询.](./code/01_langchain_faiss.py)
 
-[使用 LlamaIndex 完成 vector 的创建, 保存, 并查看保存到本地的 json 文件.  ↩](./code/02_llamaindex_vector.py)
+[使用 LlamaIndex 完成 vector 的创建, 保存, 并查看保存到本地的 json 文件.](./code/02_llamaindex_vector.py)

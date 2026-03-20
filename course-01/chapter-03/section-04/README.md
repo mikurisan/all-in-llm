@@ -1,6 +1,6 @@
 ## 1 简介
 
-一个开源的, 专为大规模向量相似性搜索和分析而设计的 vector database.
+An open-source, 专为 massive-scale similarity search 和 analysis 而 designed 的 vector database.
 
 ## 2 部署安装
 
@@ -48,13 +48,15 @@ docker compose down -v
 
 ### 3.1 Collection
 
-最基本的数据组织单位, 所有的 CRUD 都围绕 Collection 展开.
+The most fundamental organizational unit for data, 所有的 CRUD 都围绕 Collection 展开.
 
-一个 Collection 包含若干个 Partition, 用于将数据隔离以便于检索; Partition 中包含若干个 Entity, 即数据本身.
+一个 Collection 包含 several Partition, 用于 isolate 数据, 以便于 retrieval; Partition 中包含 multiple Entities, 即数据本身.
 
-Schema 定义了 Entity 的结构.
+Schema 定义了 the structure of Entities.
 
-Alias 指向某个具体的 Collection 以便于应用层的调用.
+Alias 指向 a specific Collection 以便于 application layer 的调用.
+
+> 类似于结构化数据库中的 table 概念.
 
 #### 3.1.1 Schema
 
@@ -62,176 +64,183 @@ Schema 定义了 Collection 的 fields 及其属性.
 
 通常包括以下 fields:
 
-- Primary Key Field: 必须有且仅有一个, 作为 Entity 的唯一标识.
+- **Primary Key Field**: Must 拥有 exactly one, 作为 Entity 的 unique identifier.
 
-- Vector Field: 存储核心 vector 数据, 可以有多个, 以满足多模态场景.
+- **Vector Field**: 存储 core vector data, 可以有多个, 以满足 multimodal scenarios.
 
-- Scalar Field: 存储 metadata, 用于过滤查询.
+- **Scalar Field**: 存储 metadata, 用于 filtering queries.
 
 ![alt text](./img/image01.png)
 
+> 类似于结构化数据库中表的 schema 概念.
+
 #### 3.1.2 Partition
 
-是 Collection 的一个逻辑划分, 默认会有一个 `_default` 分区. 
+是 Collection 的一个 logical subdivision, 默认会有一个 `_default` partition. 
 
-**为什么使用分区?**
+**Why use Partition?**
 
-- 提升查询性能: 查询时指定分区, 减少扫描数据量.
+- **Enhance Query Performance**: Search 时指定 partition, 减少 the volume of data scanned.
 
-- 数据管理: 按需加载指定分区数据, 避免加载全部数据.
+- **Data Management**: 按需 load 指定 partition data, prevent 加载 entire Collection.
 
 一个 Collection 最多有 1024 个 Partition.
 
+> 类似于结构化数据库中的分区 table.
+
 #### 3.1.3 Alias
 
-在程序中对 Alias 进行操作, 从而避免直接使用 Collection 名.
+在 programs 中对 Alias 进行操作, avoiding 对 Collection 名的 direct references.
 
-**为什么使用 Alias?**
+**Why use Alias?**
 
-- 安全更新数据: 底层拷贝原 Collection 进行更新, 更新完后原子性切换到新 Collection, 不影响上层应用.
+- **Safe Data Updates**: 更新 an underlying copy of the original Collection 后, 执行 atomic switch 到 new Collection, 不 impacting 上层 application.
 
-- 代码解耦: 整个切换过程对生层完全透明, 代码无需修改.
+- **Code Decoupling**: The entire switching process 对 upper layer 是 transparent, code 无需 modification.
 
 ### 3.2 Index
 
-Index 本身是一种为加速查询而设计的复杂数据结构, 其极大提升了 similarity 检索速度, 代价便是占用额外的存储和计算资源.
+Index 本身是一种为 accelerate 查询而 designed 的 complex data structure, 其 significantly improve 了 the speed of similarity searches, 代价便是占用 additional storage and computational resources.
 
 ![alt text](./img/image02.png)
 
 说明:
 
-- Data Structure: Index 的骨架, 定义了 vector 的组织方式.
+- **Data Structure**: Index 的 framework, defines 如何organize 向量.
 
-- Quantization: 数据压缩技术, 降低 vector 的精度以减少存储和计算资源.
+- **Quantization**: A compression technique, 降低 vector precision 以 save 计算和存储资源.
 
-- Refiner: 找到初步候选集后, 进行更精确的计算以优化结果.
+- **Refiner**: 找到 initial candidate set 后, 进行 more precise calculations 以 refine 结果.
 
-Milvus 支持 scalar field 和 vector field 分别创建 index:
+Milvus 支持 scalar fields 和 vector fields 分别创建 index:
 
-- scalar field index: 用于加速 metadata 过滤, 通常使用推荐的 index 类型即可.
+- **Scalar Field Index**: 用于加速 metadata 过滤. Typically 使用 recommended index type 即可.
 
-- vector field index: 核心. 合适的 vector index 是在查询性能, 召回率和内存占用之间做出权衡的艺术.
+- **Vector Field Index**: The core component. 合适的 vector index 是在 query performance, recall rate 和 memory consumption 之间的 art of balance.
+
+> Index 是为了加速 query 的, 并关注 query 的速度, 质量和资源消耗.
 
 #### 3.2.1 主要 vector index 类型
 
-以下是几种核心类型:
+Overview of Core Index Types:
 
-- FLAT (精确查找)
+- **FLAT (Exact Search)**
 
-  - 原理: 暴力搜索 (Brute-force Search), 计算 query vector 与所有 vectors 的实际距离, 返回最精确的结果.
+  - **Principle**: Brute-force Search. 计算 query vector 与所有 vectors 的 exact distance, 返回 the most precise results.
 
-  - 优点: 100% 的召回率.
+  - **Advantage**: 100% recall rate.
 
-  - 缺点: 速度慢, 内存占用大, 不适合海量数据.
+  - **Disadvantages**: Slow search speed, high memory consumption, unsuitable 对于海量数据.
 
-  - 适用场景: 对精度要求极高, 切数据规模较小(百万级以内).
+  - **Applicable Scenarios**: Extremely high accuracy requirements, and relatively small-scale data (within millions).
 
-- IVF 系列 (倒排文件索引)
+- **IVF Series (Inverted File Index)**
 
-  - 原理: 先通过聚类将 vectors 分成不同的 buckets, 查询时找到最相似的几个 buckets, 然后只在这几个 buckets 内进行精确搜索. 其有几种不同变体, 主要区别在于是否对桶内向量进行了 quantization.
+  - **Principle**: 先通过 cluster 将 vectors 分成不同的 buckets, query 时找到几个 most similar buckets, 然后只在这几个 buckets 内执行 exact search. 其有几种不同 variants, 主要 differ 在于是否对 vectors within buckets 进行了 quantization.
 
-  - 优点: 缩小 search 范围, 提高 search 速度, 在性能和效果之间取得很好的平衡.
+  - **Advantage**: 缩小 search scope, 提高 search speed, 在 performance 和 effectiveness 之间取得 a good balance.
 
-  - 缺点: 非 100% 召回率, 相关 vector 可能被分到未被 search 的 bucket.
+  - **Disadvantages**: 非 100% recall rate, 相关 vectors 可能 reside in 未被 search 的 buckets.
 
-  - 适用场景: 通用, 尤其适合高吞吐量的的大规模数据.
+  - **Applicable Scenarios**: General-purpose, especially 适合 high-throughput 的 large-scale datasets.
 
-- HNSW (基于图的索引)
+- **HNSW (Hierarchical Navigable Small World)**
 
-  - 原理: 构建一层多层的邻近图, 从最上层的稀疏图开始 search, 快速定位到目标区域, 随后在下层的密集图进行精确 search.
+  - **Principle**: 构建 a multi-layer 的 proximity graph, 从 the top sparse layer 开始 search, 快速 locate 到 the target region, 随后在 denser lower layers 进行 precise search.
 
-  - 优点: 检索速度极快, 召回率高, 尤其擅长处理高维数据和低延迟查询.
+  - **Advantage**: Exremely fast retrieval speed, high recall rate, excels in 处理 high-dimensional data 和 law-latency queries.
 
-  - 缺点: 内存占用非常大, 构建索引时间也较长.
+  - **Disadvantages**: Very high memory consumption, longer index build time.
 
-  - 适用场景: 对查询延迟有严格要求.
+  - **Applicable Scenarios**: Strict requirements for query latency.
 
-- DiskANN (基于磁盘的索引)
+- **DiskANN (Disk-based Index)**
 
-  - 原理: 一种为在高速磁盘上运行而优化的索引.
+  - **Principle**: 一种为在 high-speed disks 上运行而 optimized 的 index.
   
-  - 优点: 支持海量数据集, 同时保持较低的 search 延迟.
+  - **Advantage**: 支持 massive datasets, 同时 mmaintain 较低的 search latency.
 
-  - 缺点: 相比内存索引, 延迟较高.
+  - **Disadvantages**: 相比 memory-based indices, latency 较高.
 
-  - 适用场景: 数据规模巨大, 无法全部加载到内存.
-
+  - **Applicable Scenarios**: Extremely large datasets, 无法全部 loaded into 内存.
 
 ### 3.2.2 如何选择 Index?
 
-需要根据业务场景从数据规模, 内存限制, 查询性能和召回率之间进行权衡.
+根据 business 场景从 data volume, memory constraints, query performance 和 recall rate 之间进行 trade-off.
 
 | 场景| 	推荐索引| 	备注| 
 | --- | --- | --- |
 | 数据可完全载入内存, 追求低延迟| 	HNSW| 	内存占用较大, 但查询性能和召回率都很优秀. | 
 | 数据可完全载入内存, 追求高吞吐| 	IVF_FLAT / IVF_SQ8| 性能和资源消耗的平衡之选. | 
 | 数据量巨大, 无法载入内存| 	DiskANN| 	在 SSD 上性能优异, 专为海量数据设计. | 
-| 追求 100% 准确率, 数据量不大| 	FLAT| 	暴力搜索, 确保结果最精确. | 
+| 追求 100% 准确率, 数据量不大| FLAT| 	暴力搜索, 确保结果最精确. | 
 
-实际上, 往往需要通过 test 来找到适合数据和查询模式的 index 类型及其参数.
+In practice, 往往需要通过 trial 来找到适合 specific data 和 query pattern 的 index type 及其 parameters.
 
 ## 3.3 Search
 
-### 3.3.1 基础向量检索 (ANN Search)
+### 3.3.1 ANN Search
 
-近似最近邻 (Approximate Nearest Neighbor, ANN) 检索, 利用预先构建的 index, 从数据中找出与 query vecor 最相似的 Top-K 个 vecctor.
+Approximate Nearest Neighbor Search, 利用 pre-built index, 从 datasets 中找出与 query vector 最相似的 top-K vecctors.
 
-该策略在速度和精度之间取得极致平衡.
+该 strategy 在 speed 和 precision 之间取得 optimal compromise.
 
-### 3.3.2 增强检索
+### 3.3.2 Enhanced Search
 
-在基础 ANN Search 之上提供多种增强检索功能.
+在基础 ANN Search 之上提供多种 advanced research capabilities.
 
-**过滤检索 (Filtered Search)**
+**Filtered Search**
 
 将 similarity search 与 scalar field search 结合.
 
-- 工作原理: 根据 filter expression 过滤出 entities, 然后再执行 ANN search.
+- **Mechanism**: 根据 filter expression 过滤出 entities, 然后再执行 ANN search.
 
-- 应用示例: 
+- **Examples**: 
 
-  - 电商: 检索与红色短裙最相似的商品, 但只看价格小于 500 的.
+  - **E-commerce**: Search 与 "red skirt" 最相似的 products, 但只看 price under 500 的.
   
-  - 知识库: 查找与 AI 相关的文档, 但只从“技术”分类下, 且年份大于 2024 的文章中找.
+  - **Knowledge Base**: 查找与 AI 相关的 documents, 但只从 “technology” category 下, 且年份大于 2024 的 articles 中找.
 
-**范围检索 (Range Search)**
+**Range Search**
 
-关注所有与 query vector 相似度在特定范围内的 vectors.
+Focuses on 所有与 query vectors 相似度在 specified range 内的 vectors.
 
-- 工作原理: 定义一个阈值范围, 返回 similarity 在该范围内的 entities.
+- **Mechanism**: 定义一个 similarity threshold, 返回 similarity 在该 range 内的 entities.
 
-- 应用示例:
+- **Examples**:
 
-  - 人脸识别: 查找与目标人脸相似度超过 0.9 的人脸, 用于身份验证.
+  - **Facial Recognition**: Retrieve 与 target face 相似度超过 0.9 的 faces, 用于 authentication purposes.
 
-  - 异常检测: 查找所有与正常样本 vector 距离过大的点, 用于发现异常.
+  - **Anomaly Detection**: Identify 所有与 normal samples 的 vector distance 差距过大的 points, 用于 spot anomalies.
 
-**多向量混合检索 (Hybrid Search)**
+**Hybrid Search**
 
-在一个 query 中同时检索多个 vector fields, 并将结果 rerank.
+在一个 query 中同时检索 multiple vector fields, 并将结果 rerank.
 
-- 工作原理: 
+- **Mechanism**: 
 
-  1. 并行检索: 针对不同的 vector fields 分别发起 ANN search 请求.
+  1. **Parallel Retrieval**: 针对 different vector fields 分别 simultaneously 发起 ANN search 请求.
   
-  2. Rerank: 采用一个 reranker 将不同的 search 结果合并为一个统一的, 更高质量的排序 list.
+  2. **Fusion & Re-ranking**: Employs 一个 reranker 将 separate search results 合并为 a single, higher-quality ranked list.
 
-- 应用示例:
+- **Examples**:
 
-  - 多模态商品检索: query ”安静舒适的白色耳机“, 同时检索商品的文字描述和图片内容 vectors, 返回最匹配的商品.
+  - **Multi-modal Product Search**: query ”quiet and comfortable white headphones“, 同时检索 products 的 textual description 和 image content vectors, 返回 best match 的 products.
 
-  - 增强型 RAG: 结合密集向量(捕捉语义)和稀疏向量(匹配关键词), 实现更准确的文档检索.
+  - **Enhanced RAG**: 结合 dense vectors (to capture semantic meaning) 和 sparse vectors (to match keywords), 实现 more accurate and contextually relevant document retrieval.
 
-**分组检索 (Grouping Search)**
+**Grouping Search**
 
-解决检索多样性不足的问题.
+解决 the issue of limited diversity in search results.
 
-- 工作原理: 指定一个 field 对结果进行分组, 每个组只返回组内 similarity 最高的 entity.
+- **Mechanism**: 通过 a specified field 对 results 进行 group, each group 只返回组内与 query 相似度最高的 entity.
 
-- 应用示例:
+- **Examples**:
 
-  - 视频检索: 检索“可爱的猫咪”, 确保返回的 vedio 来自不同博主.
+  - **Video Retrieval**: 检索“cute cats”, ensure 返回的 vedio 来自 different creator.
 
-  - 文档检索: 检索“AI”, 确保返回的 result 来自不同的书籍.
+  - **Document Retrieval**: 检索“AI”, ensure 返回的 results 来自 distinct books or publications.
 
-## 代码示例
+## 参考代码
+
+[使用 Milvus 和 Visualized-BGE 构建一个 eng-to-end 图文多模态检索引擎.](./code/01_multi_milvus.py)

@@ -16,6 +16,8 @@
 
 向量数据库的作用, 工作原理, 主流向量数据库介绍,.
 
-- [Milvus 实践](./section-04/README.md)
+## [Milvus 实践](./section-04/README.md)
+
+简介, 部署安装, 核心组件, 实践.
 
 - [索引优化](./section-05/README.md)
