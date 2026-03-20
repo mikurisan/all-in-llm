@@ -1,214 +1,247 @@
-
 import json
-import os
-# 设置 Hugging Face 镜像源环境变量
-# os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import List, Tuple
 
 import numpy as np
-from pymilvus import connections, MilvusClient, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, RRFRanker
+from pymilvus import (
+    AnnSearchRequest,
+    Collection,
+    CollectionSchema,
+    DataType,
+    FieldSchema,
+    MilvusClient,
+    RRFRanker,
+    connections,
+)
 from pymilvus.model.hybrid import BGEM3EmbeddingFunction
 
-# 1. 初始化设置
-COLLECTION_NAME = "dragon_hybrid_demo"
-MILVUS_URI = "http://localhost:19530"  # 服务器模式
-DATA_PATH = "./data/dragon.json"  # 相对路径
-BATCH_SIZE = 50
+# -----------------------------------------------------------------------------
+# 日志与配置
+# -----------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
 
-# 2. 连接 Milvus 并初始化嵌入模型
-print(f"--> 正在连接到 Milvus: {MILVUS_URI}")
-connections.connect(uri=MILVUS_URI)
 
-print("--> 正在初始化 BGE-M3 嵌入模型...")
+@dataclass
+class Config:
+    collection_name: str = "dragon_hybrid_demo"
+    milvus_uri: str = "http://localhost:19530"
+    data_path: Path = Path("./data/dragon.json")
+    batch_size: int = 50
+    device: str = "cpu"
+    use_fp16: bool = False
+    top_k: int = 5
+    search_filter: str = 'category in ["western_dragon", "chinese_dragon", "movie_character"]'
+    search_query: str = "悬崖上的巨龙"
 
-ef = BGEM3EmbeddingFunction(use_fp16=False, device="cpu")
-print(f"--> 嵌入模型初始化完成。密集向量维度: {ef.dim['dense']}")
 
-# 3. 创建 Collection
-milvus_client = MilvusClient(uri=MILVUS_URI)
-if milvus_client.has_collection(COLLECTION_NAME):
-    print(f"--> 正在删除已存在的 Collection '{COLLECTION_NAME}'...")
-    milvus_client.drop_collection(COLLECTION_NAME)
+# -----------------------------------------------------------------------------
+# 1. 连接 Milvus & 初始化模型
+# -----------------------------------------------------------------------------
+def init_milvus(cfg: Config) -> Tuple[MilvusClient, BGEM3EmbeddingFunction]:
+    logging.info("连接 Milvus -> %s", cfg.milvus_uri)
+    connections.connect(uri=cfg.milvus_uri)
+    client = MilvusClient(uri=cfg.milvus_uri)
 
-fields = [
-    FieldSchema(name="pk", dtype=DataType.VARCHAR, is_primary=True, auto_id=True, max_length=100),
-    FieldSchema(name="img_id", dtype=DataType.VARCHAR, max_length=100),
-    FieldSchema(name="path", dtype=DataType.VARCHAR, max_length=256),
-    FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=256),
-    FieldSchema(name="description", dtype=DataType.VARCHAR, max_length=4096),
-    FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=64),
-    FieldSchema(name="location", dtype=DataType.VARCHAR, max_length=128),
-    FieldSchema(name="environment", dtype=DataType.VARCHAR, max_length=64),
-    FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR),
-    FieldSchema(name="dense_vector", dtype=DataType.FLOAT_VECTOR, dim=ef.dim["dense"])
-]
+    logging.info("初始化 BGE-M3 嵌入模型 (device=%s, fp16=%s)", cfg.device, cfg.use_fp16)
+    embedding_fn = BGEM3EmbeddingFunction(use_fp16=cfg.use_fp16, device=cfg.device)
+    logging.info("模型加载完成， dense 维度=%s", embedding_fn.dim["dense"])
+    return client, embedding_fn
 
-# 如果集合不存在，则创建它及索引
-if not milvus_client.has_collection(COLLECTION_NAME):
-    print(f"--> 正在创建 Collection '{COLLECTION_NAME}'...")
+
+# -----------------------------------------------------------------------------
+# 2. 构建或重置 Collection
+# -----------------------------------------------------------------------------
+def prepare_collection(cfg: Config, client: MilvusClient, embedding_fn: BGEM3EmbeddingFunction) -> Collection:
+    if client.has_collection(cfg.collection_name):
+        logging.info("检测到已有 Collection，删除以保证干净状态 -> %s", cfg.collection_name)
+        client.drop_collection(cfg.collection_name)
+
+    fields = [
+        FieldSchema(name="pk", dtype=DataType.VARCHAR, is_primary=True, auto_id=True, max_length=100),
+        FieldSchema(name="img_id", dtype=DataType.VARCHAR, max_length=100),
+        FieldSchema(name="path", dtype=DataType.VARCHAR, max_length=256),
+        FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=256),
+        FieldSchema(name="description", dtype=DataType.VARCHAR, max_length=4096),
+        FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="location", dtype=DataType.VARCHAR, max_length=128),
+        FieldSchema(name="environment", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR),
+        FieldSchema(name="dense_vector", dtype=DataType.FLOAT_VECTOR, dim=embedding_fn.dim["dense"]),
+    ]
     schema = CollectionSchema(fields, description="关于龙的混合检索示例")
-    # 创建集合
-    collection = Collection(name=COLLECTION_NAME, schema=schema, consistency_level="Strong")
-    print("--> Collection 创建成功。")
 
-    # 4. 创建索引
-    print("--> 正在为新集合创建索引...")
-    sparse_index = {"index_type": "SPARSE_INVERTED_INDEX", "metric_type": "IP"}
-    collection.create_index("sparse_vector", sparse_index)
-    print("稀疏向量索引创建成功。")
+    logging.info("创建新 Collection -> %s", cfg.collection_name)
+    collection = Collection(name=cfg.collection_name, schema=schema, consistency_level="Strong")
 
-    dense_index = {"index_type": "AUTOINDEX", "metric_type": "IP"}
-    collection.create_index("dense_vector", dense_index)
-    print("密集向量索引创建成功。")
+    logging.info("创建稀疏向量索引 (SPARSE_INVERTED_INDEX)")
+    collection.create_index("sparse_vector", {"index_type": "SPARSE_INVERTED_INDEX", "metric_type": "IP"})
 
-collection = Collection(COLLECTION_NAME)
+    logging.info("创建密集向量索引 (AUTOINDEX)")
+    collection.create_index("dense_vector", {"index_type": "AUTOINDEX", "metric_type": "IP"})
 
-# 5. 加载数据并插入
-collection.load()
-print(f"--> Collection '{COLLECTION_NAME}' 已加载到内存。")
+    return collection
 
-if collection.is_empty:
-    print(f"--> Collection 为空，开始插入数据...")
-    if not os.path.exists(DATA_PATH):
-        raise FileNotFoundError(f"数据文件未找到: {DATA_PATH}")
-    with open(DATA_PATH, 'r', encoding='utf-8') as f:
+
+# -----------------------------------------------------------------------------
+# 3. 加载数据并生成嵌入
+# -----------------------------------------------------------------------------
+def load_dataset(cfg: Config) -> Tuple[List[str], List[dict]]:
+    if not cfg.data_path.exists():
+        raise FileNotFoundError(f"未找到数据文件: {cfg.data_path}")
+
+    logging.info("加载数据集 -> %s", cfg.data_path)
+    with cfg.data_path.open("r", encoding="utf-8") as f:
         dataset = json.load(f)
 
     docs, metadata = [], []
     for item in dataset:
         parts = [
-            item.get('title', ''),
-            item.get('description', ''),
-            item.get('location', ''),
-            item.get('environment', ''),
-            # *item.get('combat_details', {}).get('combat_style', []),
-            # *item.get('combat_details', {}).get('abilities_used', []),
-            # item.get('scene_info', {}).get('time_of_day', '')
+            item.get("title", ""),
+            item.get("description", ""),
+            item.get("location", ""),
+            item.get("environment", ""),
         ]
-        docs.append(' '.join(filter(None, parts)))
+        docs.append(" ".join(filter(None, parts)))
         metadata.append(item)
-    print(f"--> 数据加载完成，共 {len(docs)} 条。")
 
-    print("--> 正在生成向量嵌入...")
-    embeddings = ef(docs)
-    print("--> 向量生成完成。")
+    logging.info("数据集加载完成，共 %d 条记录", len(docs))
+    return docs, metadata
 
-    print("--> 正在分批插入数据...")
-    # 为每个字段准备批量数据
-    img_ids = [doc["img_id"] for doc in metadata]
-    paths = [doc["path"] for doc in metadata]
-    titles = [doc["title"] for doc in metadata]
-    descriptions = [doc["description"] for doc in metadata]
-    categories = [doc["category"] for doc in metadata]
-    locations = [doc["location"] for doc in metadata]
-    environments = [doc["environment"] for doc in metadata]
-    
-    # 获取向量
-    sparse_vectors = embeddings["sparse"]
+
+def generate_embeddings(docs: List[str], embedding_fn: BGEM3EmbeddingFunction):
+    logging.info("生成向量嵌入 ...")
+    embeddings = embedding_fn(docs)
+
     dense_vectors = embeddings["dense"]
-    
-    # 插入数据
-    collection.insert([
-        img_ids,
-        paths,
-        titles,
-        descriptions,
-        categories,
-        locations,
-        environments,
-        sparse_vectors,
-        dense_vectors
-    ])
-    
+    sparse_vectors = embeddings["sparse"]
+
+    dense_count = len(dense_vectors)
+    dense_dim = len(dense_vectors[0]) if dense_vectors else 0
+
+    logging.info(
+        "向量生成完成 | dense: %d 条 (dim=%d) | sparse: shape=%s",
+        dense_count,
+        dense_dim,
+        sparse_vectors.shape,
+    )
+    return embeddings
+
+
+# -----------------------------------------------------------------------------
+# 4. 数据插入
+# -----------------------------------------------------------------------------
+def insert_data(collection: Collection, metadata: List[dict], embeddings) -> None:
+    logging.info("插入数据到 Milvus ...")
+    fields_data = [
+        [doc["img_id"] for doc in metadata],
+        [doc["path"] for doc in metadata],
+        [doc["title"] for doc in metadata],
+        [doc["description"] for doc in metadata],
+        [doc["category"] for doc in metadata],
+        [doc["location"] for doc in metadata],
+        [doc["environment"] for doc in metadata],
+        embeddings["sparse"],
+        embeddings["dense"],
+    ]
+    collection.insert(fields_data)
     collection.flush()
-    print(f"--> 数据插入完成，总数: {collection.num_entities}")
-else:
-    print(f"--> Collection 中已有 {collection.num_entities} 条数据，跳过插入。")
+    logging.info("插入完成，当前实体数=%d", collection.num_entities)
 
-# 6. 执行搜索
-search_query = "悬崖上的巨龙"
-search_filter = 'category in ["western_dragon", "chinese_dragon", "movie_character"]'
-top_k = 5
 
-print(f"\n{'='*20} 开始混合搜索 {'='*20}")
-print(f"查询: '{search_query}'")
-print(f"过滤器: '{search_filter}'")
+# -----------------------------------------------------------------------------
+# 5. 执行混合检索
+# -----------------------------------------------------------------------------
+def run_search(cfg: Config, collection: Collection, embedding_fn: BGEM3EmbeddingFunction) -> None:
+    logging.info("加载 Collection 到内存")
+    collection.load()
 
-query_embeddings = ef([search_query])
-dense_vec = query_embeddings["dense"][0]
-sparse_vec = query_embeddings["sparse"]._getrow(0)
+    query_embeddings = embedding_fn([cfg.search_query])
+    dense_vec = query_embeddings["dense"][0]
+    sparse_vec = query_embeddings["sparse"]._getrow(0)
 
-# 打印向量信息
-print("\n=== 向量信息 ===")
-print(f"密集向量维度: {len(dense_vec)}")
-print(f"密集向量前5个元素: {dense_vec[:5]}")
-print(f"密集向量范数: {np.linalg.norm(dense_vec):.4f}")
+    logging.info(
+        "查询: %s | dense-norm=%.4f | sparse-nnz=%d",
+        cfg.search_query,
+        np.linalg.norm(dense_vec),
+        sparse_vec.nnz,
+    )
 
-print(f"\n稀疏向量维度: {sparse_vec.shape[1]}")
-print(f"稀疏向量非零元素数量: {sparse_vec.nnz}")
-print("稀疏向量前5个非零元素:")
-for i in range(min(5, sparse_vec.nnz)):
-    print(f"  - 索引: {sparse_vec.indices[i]}, 值: {sparse_vec.data[i]:.4f}")
-density = (sparse_vec.nnz / sparse_vec.shape[1] * 100)
-print(f"\n稀疏向量密度: {density:.8f}%")
+    search_params = {"metric_type": "IP", "params": {}}
+    top_k = cfg.top_k
 
-# 定义搜索参数
-search_params = {"metric_type": "IP", "params": {}}
+    logging.info("执行密集向量搜索 ...")
+    dense_hits = collection.search(
+        [dense_vec],
+        anns_field="dense_vector",
+        param=search_params,
+        limit=top_k,
+        expr=cfg.search_filter,
+        output_fields=["title", "path", "description", "category", "location", "environment"],
+    )[0]
 
-# 先执行单独的搜索
-print("\n--- [单独] 密集向量搜索结果 ---")
-dense_results = collection.search(
-    [dense_vec],
-    anns_field="dense_vector",
-    param=search_params,
-    limit=top_k,
-    expr=search_filter,
-    output_fields=["title", "path", "description", "category", "location", "environment"]
-)[0]
+    logging.info("执行稀疏向量搜索 ...")
+    sparse_hits = collection.search(
+        [sparse_vec],
+        anns_field="sparse_vector",
+        param=search_params,
+        limit=top_k,
+        expr=cfg.search_filter,
+        output_fields=["title", "path", "description", "category", "location", "environment"],
+    )[0]
 
-for i, hit in enumerate(dense_results):
-    print(f"{i+1}. {hit.entity.get('title')} (Score: {hit.distance:.4f})")
-    print(f"    路径: {hit.entity.get('path')}")
-    print(f"    描述: {hit.entity.get('description')[:100]}...")
+    logging.info("执行混合搜索 (RRF)")
+    rerank = RRFRanker(k=60)
+    dense_req = AnnSearchRequest([dense_vec], "dense_vector", search_params, limit=top_k)
+    sparse_req = AnnSearchRequest([sparse_vec], "sparse_vector", search_params, limit=top_k)
+    hybrid_hits = collection.hybrid_search(
+        [sparse_req, dense_req],
+        rerank=rerank,
+        limit=top_k,
+        output_fields=["title", "path", "description", "category", "location", "environment"],
+    )[0]
 
-print("\n--- [单独] 稀疏向量搜索结果 ---")
-sparse_results = collection.search(
-    [sparse_vec],
-    anns_field="sparse_vector",
-    param=search_params,
-    limit=top_k,
-    expr=search_filter,
-    output_fields=["title", "path", "description", "category", "location", "environment"]
-)[0]
+    print_results("密集向量结果", dense_hits)
+    print_results("稀疏向量结果", sparse_hits)
+    print_results("混合结果 (RRF)", hybrid_hits)
 
-for i, hit in enumerate(sparse_results):
-    print(f"{i+1}. {hit.entity.get('title')} (Score: {hit.distance:.4f})")
-    print(f"    路径: {hit.entity.get('path')}")
-    print(f"    描述: {hit.entity.get('description')[:100]}...")
 
-print("\n--- [混合] 稀疏+密集向量搜索结果 ---")
-# 创建 RRF 融合器
-rerank = RRFRanker(k=60)
+def print_results(title: str, hits) -> None:
+    print(f"\n--- {title} ---")
+    for idx, hit in enumerate(hits, start=1):
+        title_txt = hit.entity.get("title", "N/A")
+        path = hit.entity.get("path", "N/A")
+        desc = (hit.entity.get("description") or "")[:100]
+        print(f"{idx}. {title_txt} | Score={hit.distance:.4f}")
+        print(f"   Path: {path}")
+        print(f"   Desc: {desc}...")
 
-# 创建搜索请求
-dense_req = AnnSearchRequest([dense_vec], "dense_vector", search_params, limit=top_k)
-sparse_req = AnnSearchRequest([sparse_vec], "sparse_vector", search_params, limit=top_k)
 
-# 执行混合搜索
-results = collection.hybrid_search(
-    [sparse_req, dense_req],
-    rerank=rerank,
-    limit=top_k,
-    output_fields=["title", "path", "description", "category", "location", "environment"]
-)[0]
+# -----------------------------------------------------------------------------
+# 6. 清理资源
+# -----------------------------------------------------------------------------
+def cleanup(cfg: Config, client: MilvusClient) -> None:
+    logging.info("释放并删除 Collection -> %s", cfg.collection_name)
+    client.release_collection(cfg.collection_name)
+    client.drop_collection(cfg.collection_name)
 
-# 打印最终结果
-for i, hit in enumerate(results):
-    print(f"{i+1}. {hit.entity.get('title')} (Score: {hit.distance:.4f})")
-    print(f"    路径: {hit.entity.get('path')}")
-    print(f"    描述: {hit.entity.get('description')[:100]}...")
+def main():
+    cfg = Config()
+    client, embedding_fn = init_milvus(cfg)
+    collection = prepare_collection(cfg, client, embedding_fn)
 
-# 7. 清理资源
-milvus_client.release_collection(collection_name=COLLECTION_NAME)
-print(f"已从内存中释放 Collection: '{COLLECTION_NAME}'")
-milvus_client.drop_collection(COLLECTION_NAME)
-print(f"已删除 Collection: '{COLLECTION_NAME}'")
+    docs, metadata = load_dataset(cfg)
+    embeddings = generate_embeddings(docs, embedding_fn)
+    insert_data(collection, metadata, embeddings)
+
+    run_search(cfg, collection, embedding_fn)
+    cleanup(cfg, client)
+
+
+if __name__ == "__main__":
+    main()

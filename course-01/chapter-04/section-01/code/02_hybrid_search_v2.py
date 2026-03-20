@@ -1,329 +1,284 @@
 import json
-import os
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+
 import numpy as np
 import torch
-from transformers import AutoModel, AutoProcessor
-from sklearn.feature_extraction.text import TfidfVectorizer
+from pymilvus import (
+    AnnSearchRequest,
+    Collection,
+    CollectionSchema,
+    DataType,
+    FieldSchema,
+    MilvusClient,
+    RRFRanker,
+    connections,
+)
 from scipy.sparse import csr_matrix
-from pymilvus import connections, MilvusClient, FieldSchema, CollectionSchema, DataType, Collection, AnnSearchRequest, RRFRanker
+from sklearn.feature_extraction.text import TfidfVectorizer
+from transformers import AutoModel, AutoProcessor
 
-# 1. 初始化设置
-COLLECTION_NAME = "dragon_siglip_demo"
-MILVUS_URI = "http://localhost:19530"  # 服务器模式
-DATA_PATH = "./data/dragon.json"  # 相对路径
-BATCH_SIZE = 50
 
-# 2. 自定义SigLIP嵌入函数类
+# -----------------------------------------------------------------------------
+# 0. 日志与配置
+# -----------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
+
+
+@dataclass
+class Config:
+    model_name: str = "google/siglip-base-patch16-256-multilingual"
+    device: str = "cpu"  # 如果有 GPU，可设为 "cuda"
+    collection_name: str = "dragon_siglip_demo"
+    milvus_uri: str = "http://localhost:19530"
+    data_path: Path = Path("./data/dragon.json")
+    batch_size: int = 50
+    search_query: str = "悬崖上的巨龙"
+    search_filter: str = 'category in ["western_dragon", "chinese_dragon", "movie_character"]'
+    top_k: int = 5
+
+
+# -----------------------------------------------------------------------------
+# 1. SigLIP 嵌入器
+# -----------------------------------------------------------------------------
 class SigLIPEmbeddingFunction:
     def __init__(self, model_name="google/siglip-base-patch16-256-multilingual", device="cpu"):
-        """
-        初始化SigLIP嵌入函数
-        Args:
-            model_name: SigLIP模型名称
-            device: 设备类型 ("cpu" 或 "cuda")
-        """
         self.model_name = model_name
         self.device = device
-        
-        print(f"--> 正在加载 SigLIP 模型: {model_name}")
+
+        logging.info("加载 SigLIP 模型: %s", model_name)
         self.model = AutoModel.from_pretrained(model_name)
         self.processor = AutoProcessor.from_pretrained(model_name)
-        self.model.to(device)
-        self.model.eval()
-        
-        # 初始化TF-IDF作为稀疏向量生成器
+        self.model.to(device).eval()
+
         self.tfidf_vectorizer = TfidfVectorizer(
-            max_features=10000,  # 限制词汇表大小以节省空间
-            stop_words='english',
-            ngram_range=(1, 2)
+            max_features=10_000,
+            stop_words="english",
+            ngram_range=(1, 2),
         )
         self.tfidf_fitted = False
-        
-        # 获取文本编码器的输出维度
+
         with torch.no_grad():
             dummy_text = ["test"]
             inputs = self.processor(text=dummy_text, padding="max_length", return_tensors="pt")
-            outputs = self.model.text_model(**{k: v.to(device) for k, v in inputs.items() if k != 'pixel_values'})
+            inputs = {k: v.to(device) for k, v in inputs.items() if k != "pixel_values"}
+            outputs = self.model.text_model(**inputs)
             self.dense_dim = outputs.pooler_output.shape[-1]
-        
-        print(f"--> SigLIP 模型加载完成。密集向量维度: {self.dense_dim}")
-    
+
+        logging.info("SigLIP 模型加载完成，密集向量维度: %s", self.dense_dim)
+
     @property
     def dim(self):
-        """返回维度信息，兼容原BGE-M3接口"""
         return {
             "dense": self.dense_dim,
-            "sparse": self.tfidf_vectorizer.max_features if self.tfidf_fitted else 10000
+            "sparse": self.tfidf_vectorizer.max_features if self.tfidf_fitted else 10_000,
         }
-    
+
     def fit_sparse(self, docs):
-        """拟合稀疏向量模型（TF-IDF）"""
-        print("--> 正在拟合 TF-IDF 模型...")
+        logging.info("拟合 TF-IDF 模型...")
         self.tfidf_vectorizer.fit(docs)
         self.tfidf_fitted = True
-        print(f"--> TF-IDF 模型拟合完成。词汇表大小: {len(self.tfidf_vectorizer.vocabulary_)}")
-    
+        logging.info("TF-IDF 词汇表大小: %s", len(self.tfidf_vectorizer.vocabulary_))
+
     def encode_text_dense(self, texts):
-        """使用SigLIP编码文本为密集向量"""
         if isinstance(texts, str):
             texts = [texts]
-        
-        dense_vectors = []
-        batch_size = 8  # 减小批次大小以节省内存
-        
+
+        outputs = []
+        step = 8
         with torch.no_grad():
-            for i in range(0, len(texts), batch_size):
-                batch_texts = texts[i:i + batch_size]
-                inputs = self.processor(text=batch_texts, padding="max_length", truncation=True, return_tensors="pt")
-                inputs = {k: v.to(self.device) for k, v in inputs.items() if k != 'pixel_values'}
-                
-                outputs = self.model.text_model(**inputs)
-                embeddings = outputs.pooler_output
-                
-                # 归一化向量
-                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
-                dense_vectors.extend(embeddings.cpu().numpy())
-        
-        return np.array(dense_vectors)
-    
+            for i in range(0, len(texts), step):
+                batch = texts[i : i + step]
+                inputs = self.processor(
+                    text=batch, padding="max_length", truncation=True, return_tensors="pt"
+                )
+                inputs = {k: v.to(self.device) for k, v in inputs.items() if k != "pixel_values"}
+                emb = self.model.text_model(**inputs).pooler_output
+                emb = torch.nn.functional.normalize(emb, p=2, dim=1)
+                outputs.extend(emb.cpu().numpy())
+        return np.array(outputs)
+
     def encode_text_sparse(self, texts):
-        """使用TF-IDF编码文本为稀疏向量"""
         if not self.tfidf_fitted:
-            raise ValueError("请先调用 fit_sparse() 方法拟合TF-IDF模型")
-        
+            raise ValueError("请先调用 fit_sparse() 方法拟合 TF-IDF 模型")
         if isinstance(texts, str):
             texts = [texts]
-        
-        sparse_matrix = self.tfidf_vectorizer.transform(texts)
-        return sparse_matrix
-    
+        return self.tfidf_vectorizer.transform(texts)
+
     def __call__(self, texts):
-        """主调用方法，返回密集和稀疏向量"""
         if isinstance(texts, str):
             texts = [texts]
-        
-        # 如果还没有拟合稀疏模型，先拟合
         if not self.tfidf_fitted:
             self.fit_sparse(texts)
-        
-        dense_vectors = self.encode_text_dense(texts)
-        sparse_vectors = self.encode_text_sparse(texts)
-        
         return {
-            "dense": dense_vectors,
-            "sparse": sparse_vectors
+            "dense": self.encode_text_dense(texts),
+            "sparse": self.encode_text_sparse(texts),
         }
 
-# 3. 连接 Milvus 并初始化嵌入模型
-print(f"--> 正在连接到 Milvus: {MILVUS_URI}")
-connections.connect(uri=MILVUS_URI)
 
-print("--> 正在初始化 SigLIP 嵌入模型...")
-ef = SigLIPEmbeddingFunction(device="cpu")  # 如果有GPU可以改为"cuda"
+# -----------------------------------------------------------------------------
+# 2. 数据与集合构建
+# -----------------------------------------------------------------------------
+def ensure_collection(cfg, ef):
+    connections.connect(uri=cfg.milvus_uri)
+    client = MilvusClient(uri=cfg.milvus_uri)
 
-# 4. 创建 Collection
-milvus_client = MilvusClient(uri=MILVUS_URI)
-if milvus_client.has_collection(COLLECTION_NAME):
-    print(f"--> 正在删除已存在的 Collection '{COLLECTION_NAME}'...")
-    milvus_client.drop_collection(COLLECTION_NAME)
+    if client.has_collection(cfg.collection_name):
+        logging.info("删除已存在的 Collection: %s", cfg.collection_name)
+        client.drop_collection(cfg.collection_name)
 
-fields = [
-    FieldSchema(name="pk", dtype=DataType.VARCHAR, is_primary=True, auto_id=True, max_length=100),
-    FieldSchema(name="img_id", dtype=DataType.VARCHAR, max_length=100),
-    FieldSchema(name="path", dtype=DataType.VARCHAR, max_length=256),
-    FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=256),
-    FieldSchema(name="description", dtype=DataType.VARCHAR, max_length=4096),
-    FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=64),
-    FieldSchema(name="location", dtype=DataType.VARCHAR, max_length=128),
-    FieldSchema(name="environment", dtype=DataType.VARCHAR, max_length=64),
-    FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR),
-    FieldSchema(name="dense_vector", dtype=DataType.FLOAT_VECTOR, dim=ef.dim["dense"])
-]
+    fields = [
+        FieldSchema(name="pk", dtype=DataType.VARCHAR, is_primary=True, auto_id=True, max_length=100),
+        FieldSchema(name="img_id", dtype=DataType.VARCHAR, max_length=100),
+        FieldSchema(name="path", dtype=DataType.VARCHAR, max_length=256),
+        FieldSchema(name="title", dtype=DataType.VARCHAR, max_length=256),
+        FieldSchema(name="description", dtype=DataType.VARCHAR, max_length=4096),
+        FieldSchema(name="category", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="location", dtype=DataType.VARCHAR, max_length=128),
+        FieldSchema(name="environment", dtype=DataType.VARCHAR, max_length=64),
+        FieldSchema(name="sparse_vector", dtype=DataType.SPARSE_FLOAT_VECTOR),
+        FieldSchema(name="dense_vector", dtype=DataType.FLOAT_VECTOR, dim=ef.dim["dense"]),
+    ]
 
-# 如果集合不存在，则创建它及索引
-if not milvus_client.has_collection(COLLECTION_NAME):
-    print(f"--> 正在创建 Collection '{COLLECTION_NAME}'...")
-    schema = CollectionSchema(fields, description="使用SigLIP的龙混合检索示例")
-    # 创建集合
-    collection = Collection(name=COLLECTION_NAME, schema=schema, consistency_level="Strong")
-    print("--> Collection 创建成功。")
+    schema = CollectionSchema(fields, description="使用 SigLIP 的龙混合检索示例")
+    collection = Collection(name=cfg.collection_name, schema=schema, consistency_level="Strong")
 
-    # 5. 创建索引
-    print("--> 正在为新集合创建索引...")
-    sparse_index = {"index_type": "SPARSE_INVERTED_INDEX", "metric_type": "IP"}
-    collection.create_index("sparse_vector", sparse_index)
-    print("稀疏向量索引创建成功。")
+    logging.info("创建稀疏/密集索引 ...")
+    collection.create_index("sparse_vector", {"index_type": "SPARSE_INVERTED_INDEX", "metric_type": "IP"})
+    collection.create_index("dense_vector", {"index_type": "AUTOINDEX", "metric_type": "IP"})
 
-    dense_index = {"index_type": "AUTOINDEX", "metric_type": "IP"}
-    collection.create_index("dense_vector", dense_index)
-    print("密集向量索引创建成功。")
+    collection.load()
+    logging.info("Collection '%s' 已加载到内存", cfg.collection_name)
+    return collection, client
 
-collection = Collection(COLLECTION_NAME)
 
-# 6. 加载数据并插入
-collection.load()
-print(f"--> Collection '{COLLECTION_NAME}' 已加载到内存。")
-
-if collection.is_empty:
-    print(f"--> Collection 为空，开始插入数据...")
-    if not os.path.exists(DATA_PATH):
-        raise FileNotFoundError(f"数据文件未找到: {DATA_PATH}")
-    with open(DATA_PATH, 'r', encoding='utf-8') as f:
+# -----------------------------------------------------------------------------
+# 3. 数据准备与插入
+# -----------------------------------------------------------------------------
+def load_dataset(path: Path):
+    if not path.exists():
+        raise FileNotFoundError(f"数据文件未找到: {path}")
+    with path.open("r", encoding="utf-8") as f:
         dataset = json.load(f)
 
     docs, metadata = [], []
     for item in dataset:
         parts = [
-            item.get('title', ''),
-            item.get('description', ''),
-            item.get('location', ''),
-            item.get('environment', ''),
+            item.get("title", ""),
+            item.get("description", ""),
+            item.get("location", ""),
+            item.get("environment", ""),
             # *item.get('combat_details', {}).get('combat_style', []),
             # *item.get('combat_details', {}).get('abilities_used', []),
             # item.get('scene_info', {}).get('time_of_day', '')
         ]
-        docs.append(' '.join(filter(None, parts)))
+        docs.append(" ".join(filter(None, parts)))
         metadata.append(item)
-    print(f"--> 数据加载完成，共 {len(docs)} 条。")
+    logging.info("数据加载完成，共 %s 条", len(docs))
+    return docs, metadata
 
-    print("--> 正在生成向量嵌入...")
-    embeddings = ef(docs)
-    print("--> 向量生成完成。")
 
-    print("--> 正在分批插入数据...")
-    # 为每个字段准备批量数据
-    img_ids = [doc["img_id"] for doc in metadata]
-    paths = [doc["path"] for doc in metadata]
-    titles = [doc["title"] for doc in metadata]
-    descriptions = [doc["description"] for doc in metadata]
-    categories = [doc["category"] for doc in metadata]
-    locations = [doc["location"] for doc in metadata]
-    environments = [doc["environment"] for doc in metadata]
-    
-    # 获取向量 - 注意SigLIP返回的格式与BGE-M3不同
-    sparse_vectors = []
+def sparse_to_dict(matrix: csr_matrix):
+    vectors = []
+    for i in range(matrix.shape[0]):
+        row = matrix.getrow(i)
+        vectors.append({int(idx): float(val) for idx, val in zip(row.indices, row.data)})
+    return vectors
+
+
+def insert_data(collection, metadata, embeddings):
+    logging.info("开始插入数据 ...")
+    sparse_vectors = sparse_to_dict(embeddings["sparse"])
     dense_vectors = embeddings["dense"].tolist()
-    
-    # 将稀疏矩阵转换为Milvus可接受的格式
-    sparse_matrix = embeddings["sparse"]
-    for i in range(sparse_matrix.shape[0]):
-        row = sparse_matrix.getrow(i)
-        # 创建稀疏向量字典格式
-        sparse_dict = {}
-        for j in range(row.nnz):
-            sparse_dict[row.indices[j]] = float(row.data[j])
-        sparse_vectors.append(sparse_dict)
-    
-    # 插入数据
-    collection.insert([
-        img_ids,
-        paths,
-        titles,
-        descriptions,
-        categories,
-        locations,
-        environments,
-        sparse_vectors,
-        dense_vectors
-    ])
-    
+
+    fields = {
+        "img_id": [doc["img_id"] for doc in metadata],
+        "path": [doc["path"] for doc in metadata],
+        "title": [doc["title"] for doc in metadata],
+        "description": [doc["description"] for doc in metadata],
+        "category": [doc["category"] for doc in metadata],
+        "location": [doc["location"] for doc in metadata],
+        "environment": [doc["environment"] for doc in metadata],
+        "sparse_vector": sparse_vectors,
+        "dense_vector": dense_vectors,
+    }
+
+    collection.insert([fields[k] for k in fields])
     collection.flush()
-    print(f"--> 数据插入完成，总数: {collection.num_entities}")
-else:
-    print(f"--> Collection 中已有 {collection.num_entities} 条数据，跳过插入。")
+    logging.info("插入完成，总数: %s", collection.num_entities)
 
-# 7. 执行搜索
-search_query = "悬崖上的巨龙"
-search_filter = 'category in ["western_dragon", "chinese_dragon", "movie_character"]'
-top_k = 5
 
-print(f"\n{'='*20} 开始混合搜索 {'='*20}")
-print(f"查询: '{search_query}'")
-print(f"过滤器: '{search_filter}'")
+# -----------------------------------------------------------------------------
+# 4. 搜索与展示
+# -----------------------------------------------------------------------------
+def run_search(collection, ef, cfg):
+    logging.info("开始混合搜索")
+    query_embeddings = ef([cfg.search_query])
+    dense_vec = query_embeddings["dense"][0].tolist()
 
-# 生成查询向量
-query_embeddings = ef([search_query])
-dense_vec = query_embeddings["dense"][0].tolist()
+    sparse_row = query_embeddings["sparse"].getrow(0)
+    sparse_dict = {int(idx): float(val) for idx, val in zip(sparse_row.indices, sparse_row.data)}
 
-# 处理稀疏向量
-sparse_matrix = query_embeddings["sparse"]
-sparse_row = sparse_matrix.getrow(0)
-sparse_dict = {}
-for j in range(sparse_row.nnz):
-    sparse_dict[sparse_row.indices[j]] = float(sparse_row.data[j])
+    logging.info("密集向量维度: %d, 稀疏非零: %d", len(dense_vec), sparse_row.nnz)
 
-# 打印向量信息
-print("\n=== 向量信息 ===")
-print(f"密集向量维度: {len(dense_vec)}")
-print(f"密集向量前5个元素: {dense_vec[:5]}")
-print(f"密集向量范数: {np.linalg.norm(dense_vec):.4f}")
+    search_params = {"metric_type": "IP", "params": {}}
+    output = ["title", "path", "description", "category", "location", "environment"]
 
-print(f"\n稀疏向量维度: {sparse_matrix.shape[1]}")
-print(f"稀疏向量非零元素数量: {sparse_row.nnz}")
-print("稀疏向量前5个非零元素:")
-for i, (idx, val) in enumerate(list(sparse_dict.items())[:5]):
-    print(f"  - 索引: {idx}, 值: {val:.4f}")
-density = (sparse_row.nnz / sparse_matrix.shape[1] * 100)
-print(f"\n稀疏向量密度: {density:.8f}%")
+    dense_results = collection.search(
+        [dense_vec], anns_field="dense_vector", param=search_params, limit=cfg.top_k, expr=cfg.search_filter, output_fields=output
+    )[0]
 
-# 定义搜索参数
-search_params = {"metric_type": "IP", "params": {}}
+    sparse_results = collection.search(
+        [sparse_dict], anns_field="sparse_vector", param=search_params, limit=cfg.top_k, expr=cfg.search_filter, output_fields=output
+    )[0]
 
-# 先执行单独的搜索
-print("\n--- [单独] 密集向量搜索结果 ---")
-dense_results = collection.search(
-    [dense_vec],
-    anns_field="dense_vector",
-    param=search_params,
-    limit=top_k,
-    expr=search_filter,
-    output_fields=["title", "path", "description", "category", "location", "environment"]
-)[0]
+    logging.info("--- [单独] 密集向量搜索结果 ---")
+    for i, hit in enumerate(dense_results, 1):
+        logging.info("%d. %s (Score: %.4f)", i, hit.entity.get("title"), hit.distance)
 
-for i, hit in enumerate(dense_results):
-    print(f"{i+1}. {hit.entity.get('title')} (Score: {hit.distance:.4f})")
-    print(f"    路径: {hit.entity.get('path')}")
-    print(f"    描述: {hit.entity.get('description')[:100]}...")
+    logging.info("--- [单独] 稀疏向量搜索结果 ---")
+    for i, hit in enumerate(sparse_results, 1):
+        logging.info("%d. %s (Score: %.4f)", i, hit.entity.get("title"), hit.distance)
 
-print("\n--- [单独] 稀疏向量搜索结果 ---")
-sparse_results = collection.search(
-    [sparse_dict],
-    anns_field="sparse_vector",
-    param=search_params,
-    limit=top_k,
-    expr=search_filter,
-    output_fields=["title", "path", "description", "category", "location", "environment"]
-)[0]
+    rerank = RRFRanker(k=60)
+    dense_req = AnnSearchRequest([dense_vec], "dense_vector", search_params, limit=cfg.top_k)
+    sparse_req = AnnSearchRequest([sparse_dict], "sparse_vector", search_params, limit=cfg.top_k)
 
-for i, hit in enumerate(sparse_results):
-    print(f"{i+1}. {hit.entity.get('title')} (Score: {hit.distance:.4f})")
-    print(f"    路径: {hit.entity.get('path')}")
-    print(f"    描述: {hit.entity.get('description')[:100]}...")
+    results = collection.hybrid_search(
+        [sparse_req, dense_req],
+        rerank=rerank,
+        limit=cfg.top_k,
+        output_fields=output,
+    )[0]
 
-print("\n--- [混合] 稀疏+密集向量搜索结果 ---")
-# 创建 RRF 融合器
-rerank = RRFRanker(k=60)
+    logging.info("--- [混合] 稀疏 + 密集搜索结果 ---")
+    for i, hit in enumerate(results, 1):
+        logging.info("%d. %s (Score: %.4f)", i, hit.entity.get("title"), hit.distance)
 
-# 创建搜索请求
-dense_req = AnnSearchRequest([dense_vec], "dense_vector", search_params, limit=top_k)
-sparse_req = AnnSearchRequest([sparse_dict], "sparse_vector", search_params, limit=top_k)
 
-# 执行混合搜索
-results = collection.hybrid_search(
-    [sparse_req, dense_req],
-    rerank=rerank,
-    limit=top_k,
-    output_fields=["title", "path", "description", "category", "location", "environment"]
-)[0]
+# -----------------------------------------------------------------------------
+# 5. 主流程
+# -----------------------------------------------------------------------------
+def main():
+    cfg = Config()
+    ef = SigLIPEmbeddingFunction(cfg.model_name, cfg.device)
+    collection, client = ensure_collection(cfg, ef)
 
-# 打印最终结果
-for i, hit in enumerate(results):
-    print(f"{i+1}. {hit.entity.get('title')} (Score: {hit.distance:.4f})")
-    print(f"    路径: {hit.entity.get('path')}")
-    print(f"    描述: {hit.entity.get('description')[:100]}...")
+    docs, metadata = load_dataset(cfg.data_path)
+    embeddings = ef(docs)
+    insert_data(collection, metadata, embeddings)
 
-# 8. 清理资源
-milvus_client.release_collection(collection_name=COLLECTION_NAME)
-print(f"已从内存中释放 Collection: '{COLLECTION_NAME}'")
-milvus_client.drop_collection(COLLECTION_NAME)
-print(f"已删除 Collection: '{COLLECTION_NAME}'")
+    run_search(collection, ef, cfg)
+
+    client.release_collection(collection_name=cfg.collection_name)
+    client.drop_collection(cfg.collection_name)
+    logging.info("已释放并删除 Collection: %s", cfg.collection_name)
+
+
+if __name__ == "__main__":
+    main()

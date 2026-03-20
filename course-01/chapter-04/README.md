@@ -1,6 +1,12 @@
-## 目录
+<div align="center">
+  <img src="../img/nousresearch.png" width="180" />
+  <br>
+  <h1>RAG</h1>
+</div>
 
-- [混合检索](./section-01/README.md)
+## [混合检索](./section-01/README.md)
+
+稀疏向量与密集向量, 混合检索, 实践.
 
 - [查询构建](./section-02/README.md)
 

@@ -216,3 +216,5 @@ cache
 
 *.faiss
 *.pkl
+*.DS_Store
+*_result.png

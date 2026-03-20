@@ -61,4 +61,6 @@ dependencies = [
     "spacy>=3.8.11",
     "langchain-unstructured==0.1.6",
     "rank-bm25==0.2.2",
+    "peft>=0.18.1",
+    "flagembedding>=1.3.5",
 ]
