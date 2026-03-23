@@ -22,7 +22,7 @@ Self-Query Retriever 是 LangChain 中实现该 function 的 core component, the
 
 ## 示例代码
 
-[text 转换为元数据 filter](./code/01_text_to_metadata_filter.py)
+[text 转换为元数据 filter.](./code/01_text_to_metadata_filter.py)
 
 ## 2 文本到 Cypher
 

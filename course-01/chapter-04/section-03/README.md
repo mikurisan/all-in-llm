@@ -1,36 +1,37 @@
-文本到 SQL (Text-to-SQL) 将自然语言 query 转换为 sql 查询语句.
+Text-to-SQL 指的是将 natural language queries 转换为 sql statements.
 
 ## 1 业务挑战
 
-- “幻觉”问题: LLM 会想象出不存在的 fields, 导致 sql 失效.
+- **Hallucination**: LLM 会 invent 出 non-existent fields, 导致 invalid sql.
 
-- 对 schema 理解不足: LLM 需要准确理解 schema, fileds 的含义, 以及 talbes 间的关联关系, 才能保证 sql 准确.
+- **Insufficient Schema Understanding**: LLM 需要 a precise understanding of schema, fileds 的 meaning, 以及 relationships between tables, 才能生成 accurate SQL.
 
-- 处理用户输入的模糊性: query 可能存在拼写错误或不规范的表达等, LLM 需要具备一定的容错和推理能力.
-
+- **Handling Input Ambiguity**: User queries 可能存在 typos, colloquialisms or vague expressions. LLM 需要具备一定的 fault tolerance 和 reason capability.
 
 ## 2 优化策略
 
-1. 提供准确的 schema: 向 LLM 提供 create table 语句.
+1. **Provide Accurate Schema**: 向 LLM 提供 create table statements.
 
-2. 提高少而高质量的 example: 在 prompt 中添加一些 question-sql pairs 可以极大提升 query 的准确性.
+2. **Use High-Quality, Few-Shot Examples**: 在 prompt 中添加一些 question-sql pairs 可以 significantly 提升 query 的 accuracy.
 
-3. 利用 RAG 增强 context: 为 database 建立一个知识库, 除了 tabl 的 ddl 还可以包括:
+3. **Enhance Context with RAG**: 为 database 建立一个 knowledge base, 除了 tabl 的 ddl 还可以 include:
 
-    - table 和 fields 的详细描述: 解释每个 table 是干什么的, 每个 field 的字段含义.
+    - **Detailed Description**: Explanations of what each table and field represents.
 
-    - 同义词和业务术语: 例如“花费“映射到的是“lost”字段.
+    - **Synonyms and Business Terminology**: 例如“花费“映射到的是 “lost”.
 
-    - 复杂的查询示例: 提供一些相对复杂的 sql 查询 exmaples.
+    - **Complex Query Examples**: 提供一些相对 exmaples of sophisticated sql queries .
 
-4. 错误修正与反思 (Error Correction and Reflection): 生成 sql 后尝试执行, 发生错误后将其返回给 LLM, 让其自行修正后重试.
+4. **Error Correction and Reflection**: 生成 sql 后尝试 execute, error occurs 后将其返回给 LLM, 让其自行 correct 后 retry.
+
+> 和 section-02 一样, 利用传递给 llm 到 metadata 让其输出 specifc query statement, 很依赖 llm 到能力.
 
 ## 参考代码
 
-[实现一个简单的 Text2Sql 框架](./code/01_text2sql_demo.py)
+[实现一个简单的 Text2Sql 框架.](./code/01_text2sql_demo.py)
 
 ## 参考文献
 
-[LangChain Docs: Text to SQL. ↩](https://docs.langchain.com/oss/python/langchain/rag)
+[LangChain Docs: Text to SQL.](https://docs.langchain.com/oss/python/langchain/rag)
 
-[RAGFlow Blog: Implementing Text2SQL with RAGFlow. ↩](https://ragflow.io/blog/implementing-text2sql-with-ragflow)
+[RAGFlow Blog: Implementing Text2SQL with RAGFlow.](https://ragflow.io/blog/implementing-text2sql-with-ragflow)
