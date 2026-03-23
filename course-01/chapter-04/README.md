@@ -8,7 +8,9 @@
 
 稀疏向量与密集向量, 混合检索, 实践.
 
-- [查询构建](./section-02/README.md)
+## [查询构建](./section-02/README.md)
+
+文本到元数据过滤器, 文本到 Cypher.
 
 - [文本到 sql](./section-03/README.md)
 

@@ -1,116 +1,140 @@
+import logging
 import os
-from langchain_deepseek import ChatDeepSeek 
-from langchain_community.document_loaders import BiliBiliLoader
+from dataclasses import dataclass
+from typing import List
+
 from langchain.chains.query_constructor.base import AttributeInfo
 from langchain.retrievers.self_query.base import SelfQueryRetriever
+from langchain_community.document_loaders import BiliBiliLoader
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-import logging
+from langchain_openai import ChatOpenAI
 
-logging.basicConfig(level=logging.INFO)
 
-# 1. 初始化视频数据
-video_urls = [
-    "https://www.bilibili.com/video/BV1Bo4y1A7FU", 
-    "https://www.bilibili.com/video/BV1ug4y157xA",
-    "https://www.bilibili.com/video/BV1yh411V7ge",
-]
-
-bili = []
-try:
-    loader = BiliBiliLoader(video_urls=video_urls)
-    docs = loader.load()
-    
-    for doc in docs:
-        original = doc.metadata
-        
-        # 提取基本元数据字段
-        metadata = {
-            'title': original.get('title', '未知标题'),
-            'author': original.get('owner', {}).get('name', '未知作者'),
-            'source': original.get('bvid', '未知ID'),
-            'view_count': original.get('stat', {}).get('view', 0),
-            'length': original.get('duration', 0),
-        }
-        
-        doc.metadata = metadata
-        bili.append(doc)
-        
-except Exception as e:
-    print(f"加载BiliBili视频失败: {str(e)}")
-
-if not bili:
-    print("没有成功加载任何视频，程序退出")
-    exit()
-
-# 2. 创建向量存储
-embed_model = HuggingFaceEmbeddings(model_name="BAAI/bge-small-zh-v1.5")
-vectorstore = Chroma.from_documents(bili, embed_model)
-
-# 3. 配置元数据字段信息
-metadata_field_info = [
-    AttributeInfo(
-        name="title",
-        description="视频标题（字符串）",
-        type="string", 
-    ),
-    AttributeInfo(
-        name="author",
-        description="视频作者（字符串）",
-        type="string",
-    ),
-    AttributeInfo(
-        name="view_count",
-        description="视频观看次数（整数）",
-        type="integer",
-    ),
-    AttributeInfo(
-        name="length",
-        description="视频长度（整数）",
-        type="integer"
-    )
-]
-
-# 4. 创建自查询检索器
-llm = ChatDeepSeek(
-    api_base="https://aihubmix.com/v1",
-    model="deepseek-v3.2", 
-    temperature=0, 
-    api_key=os.getenv("DEEPSEEK_API_KEY")
-    )
-
-retriever = SelfQueryRetriever.from_llm(
-    llm=llm,
-    # 将 document content 告诉 LLM 
-    document_contents="记录视频标题、作者、观看次数等信息的视频元数据",
-    # 将元数据 fields 告诉 LLM
-    metadata_field_info=metadata_field_info,
-    # 因为 vectorstore 类型为 Chroma, 这里会将上述两个通用的 query object 
-    # 翻译为 Chroma 能够理解的原生语法, 再执行
-    vectorstore=vectorstore,
-    enable_limit=True,
-    verbose=True
+# -----------------------------------------------------------------------------
+# 日志与配置
+# -----------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
 )
 
-# 5. 执行查询示例
-queries = [
-    "时间最短的视频",
-    "时长大于600秒的视频"
-]
 
-for query in queries:
-    print(f"\n--- 查询: '{query}' ---")
-    results = retriever.invoke(query)
-    if results:
+@dataclass
+class Config:
+    model_name: str = os.getenv("MODEL_NAME", "")
+    api_key: str = os.getenv("API_KEY", "")
+    api_base: str = os.getenv("BASE_URL", "")
+    embed_model: str = "BAAI/bge-small-zh-v1.5"
+    video_urls: List[str] = (
+        "https://www.bilibili.com/video/BV1Bo4y1A7FU",
+        "https://www.bilibili.com/video/BV1ug4y157xA",
+        "https://www.bilibili.com/video/BV1yh411V7ge",
+    )
+    queries: List[str] = ("时间最短的视频", "时长大于600秒的视频")
+
+
+# -----------------------------------------------------------------------------
+# 1. 初始化视频数据
+# -----------------------------------------------------------------------------
+def load_bilibili_documents(video_urls: List[str]):
+    loader = BiliBiliLoader(video_urls=video_urls)
+    docs = loader.load()
+
+    processed_docs = []
+    for doc in docs:
+        original = doc.metadata
+        metadata = {
+            "title": original.get("title", "未知标题"),
+            "author": original.get("owner", {}).get("name", "未知作者"),
+            "source": original.get("bvid", "未知ID"),
+            "view_count": original.get("stat", {}).get("view", 0),
+            "length": original.get("duration", 0),
+        }
+        doc.metadata = metadata
+        processed_docs.append(doc)
+
+    return processed_docs
+
+
+# -----------------------------------------------------------------------------
+# 2. 创建向量存储
+# -----------------------------------------------------------------------------
+def build_vectorstore(documents):
+    embeddings = HuggingFaceEmbeddings(model_name=Config.embed_model)
+    return Chroma.from_documents(documents, embedding=embeddings)
+
+
+# -----------------------------------------------------------------------------
+# 3. 配置元数据字段信息
+# -----------------------------------------------------------------------------
+def get_metadata_schema():
+    return [
+        AttributeInfo(name="title", description="视频标题（字符串）", type="string"),
+        AttributeInfo(name="author", description="视频作者（字符串）", type="string"),
+        AttributeInfo(name="view_count", description="视频观看次数（整数）", type="integer"),
+        AttributeInfo(name="length", description="视频长度（整数）", type="integer"),
+    ]
+
+
+# -----------------------------------------------------------------------------
+# 4. 创建自查询检索器
+# -----------------------------------------------------------------------------
+def build_retriever(cfg: Config, vectorstore):
+    llm = ChatOpenAI(
+        model_name=cfg.model_name,
+        openai_api_key=cfg.api_key,
+        openai_api_base=cfg.api_base,
+        temperature=0,
+    )
+    return SelfQueryRetriever.from_llm(
+        llm=llm,
+        document_contents="记录视频标题、作者、观看次数等信息的视频元数据",
+        metadata_field_info=get_metadata_schema(),
+        vectorstore=vectorstore,
+        enable_limit=True,
+        verbose=True,
+    )
+
+
+# -----------------------------------------------------------------------------
+# 5. 执行查询示例
+# -----------------------------------------------------------------------------
+def run_queries(retriever, queries: List[str]):
+    for query in queries:
+        print(f"\n--- 查询: '{query}' ---")
+        results = retriever.invoke(query)
+        if not results:
+            print("未找到匹配的视频")
+            continue
+
         for doc in results:
-            title = doc.metadata.get('title', '未知标题')
-            author = doc.metadata.get('author', '未知作者')
-            view_count = doc.metadata.get('view_count', '未知')
-            length = doc.metadata.get('length', '未知')
-            print(f"标题: {title}")
-            print(f"作者: {author}")
-            print(f"观看次数: {view_count}")
-            print(f"时长: {length}秒")
-            print("="*50)
-    else:
-        print("未找到匹配的视频")
+            metadata = doc.metadata
+            print(f"标题: {metadata.get('title', '未知标题')}")
+            print(f"作者: {metadata.get('author', '未知作者')}")
+            print(f"观看次数: {metadata.get('view_count', '未知')}")
+            print(f"时长: {metadata.get('length', '未知')}秒")
+            print("=" * 50)
+
+
+def main():
+    cfg = Config()
+
+    try:
+        docs = load_bilibili_documents(cfg.video_urls)
+    except Exception as exc:
+        logging.error("加载BiliBili视频失败: %s", exc)
+        raise SystemExit(1)
+
+    if not docs:
+        logging.error("没有成功加载任何视频，程序退出")
+        raise SystemExit(1)
+
+    vectorstore = build_vectorstore(docs)
+    retriever = build_retriever(cfg, vectorstore)
+    run_queries(retriever, cfg.queries)
+
+
+if __name__ == "__main__":
+    main()
