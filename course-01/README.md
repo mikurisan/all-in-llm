@@ -18,7 +18,7 @@
 
 ## [检索优化](./chapter-04/README.md)
 
-混合检索, 查询构建, Text2SQL, 
+混合检索, 查询构建, Text2SQL, 查询重构与分发, 
 
 - [chapter-05: 生成集成](./chapter-05/README.md)
 

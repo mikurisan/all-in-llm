@@ -14,8 +14,10 @@
 
 ## [文本到 sql](./section-03/README.md)
 
-业务挑战, 优化策略, 实现一个 text2sql 框架, 
+业务挑战, 优化策略, 实现一个 text2sql 框架.
 
-- [查询重构与分发](./section-04/README.md)
+## [查询重构与分发](./section-04/README.md)
+
+查询翻译, 查询路由.
 
 - [检索进阶技术](./section-05/README.md)

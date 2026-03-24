@@ -218,3 +218,4 @@ cache
 *.pkl
 *.DS_Store
 *_result.png
+chroma_store/
