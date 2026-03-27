@@ -8,8 +8,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.utils.math import cosine_similarity
-from langchain_deepseek import ChatDeepSeek
-
+from langchain_openai import ChatOpenAI
 
 # -----------------------------------------------------------------------------
 # 日志与配置
@@ -45,8 +44,8 @@ ROUTE_PROMPTS = {
 def prepare_components(cfg: Config):
     embeddings = HuggingFaceEmbeddings(model_name=cfg.embedding_model)
     route_vectors = embeddings.embed_documents(list(ROUTE_PROMPTS.values()))
-    llm = ChatDeepSeek(
-        api_base=cfg.base_url,
+    llm = ChatOpenAI(
+        base_url=cfg.base_url,
         model=cfg.model_name,
         api_key=cfg.api_key,
         temperature=cfg.temperature,

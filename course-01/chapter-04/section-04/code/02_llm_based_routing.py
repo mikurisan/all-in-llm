@@ -6,7 +6,7 @@ from operator import itemgetter
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableBranch, RunnableLambda
-from langchain_deepseek import ChatDeepSeek
+from langchain_openai import ChatOpenAI
 
 
 # -----------------------------------------------------------------------------
@@ -32,9 +32,9 @@ logging.basicConfig(
 )
 
 
-def build_llm(cfg: Config) -> ChatDeepSeek:
-    return ChatDeepSeek(
-        api_base=cfg.base_url,
+def build_llm(cfg: Config) -> ChatOpenAI:
+    return ChatOpenAI(
+        base_url=cfg.base_url,
         model=cfg.model_name,
         temperature=cfg.temperature,
         api_key=cfg.api_key,

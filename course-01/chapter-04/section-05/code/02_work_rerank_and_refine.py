@@ -1,78 +1,89 @@
 import os
-from langchain_community.vectorstores import FAISS
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import LLMChainExtractor
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import TextLoader
-from langchain_deepseek import ChatDeepSeek
-
-# 导入ColBERT重排器需要的模块
-from langchain.retrievers.document_compressors.base import BaseDocumentCompressor
-from langchain.retrievers.document_compressors import DocumentCompressorPipeline
-from langchain_core.documents import Document
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Sequence
+
 import torch
-from transformers import AutoTokenizer, AutoModel
 import torch.nn.functional as F
+from transformers import AutoTokenizer, AutoModel
+
+from langchain_community.document_loaders import TextLoader
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_community.vectorstores import FAISS
+
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors import (
+    DocumentCompressorPipeline,
+    LLMChainExtractor,
+)
+from langchain.retrievers.document_compressors.base import BaseDocumentCompressor
+from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI
+
+
+# -----------------------------------------------------------------------------
+# 日志与配置
+# -----------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
+)
+
+
+@dataclass
+class Config:
+    data_path: Path = Path("./data/ai.txt")
+    query: str = "AI还有哪些缺陷需要克服？"
+    chunk_size: int = 300
+    chunk_overlap: int = 20
+    retriever_k: int = 20
+    rerank_top_k: int = 5
+    colbert_model: str = "bert-base-uncased"
+    embed_model: str = "BAAI/bge-large-zh-v1.5"
+    llm_model: str = field(default_factory=lambda: os.getenv("MODEL_NAME", ""))
+    llm_base_url: str = field(default_factory=lambda: os.getenv("BASE_URL", ""))
+    llm_api_key: str = field(default_factory=lambda: os.getenv("API_KEY", ""))
+
+
+# -----------------------------------------------------------------------------
+# 1. ColBERT 重排器
+# -----------------------------------------------------------------------------
 
 class ColBERTReranker(BaseDocumentCompressor):
-    """ColBERT重排器"""
-
-    def __init__(self, **kwargs):
+    def __init__(self, model_name: str, top_k: int = 5, **kwargs):
         super().__init__(**kwargs)
-
-        model_name = "bert-base-uncased"
-
-        # 加载模型和分词器
-        object.__setattr__(self, 'tokenizer', AutoTokenizer.from_pretrained(model_name))
-        object.__setattr__(self, 'model', AutoModel.from_pretrained(model_name))
+        object.__setattr__(self, "top_k", top_k)
+        object.__setattr__(self, "tokenizer", AutoTokenizer.from_pretrained(model_name))
+        object.__setattr__(self, "model", AutoModel.from_pretrained(model_name))
         self.model.eval()
-        print(f"ColBERT模型加载完成")
+        logging.info("ColBERT模型加载完成")
 
-    def encode_text(self, texts):
-        """ColBERT文本编码"""
+    def encode(self, texts):
         inputs = self.tokenizer(
             texts,
             return_tensors="pt",
             padding=True,
             truncation=True,
-            max_length=128
+            max_length=128,
         )
-
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = self.model(**inputs)
+        embeddings = F.normalize(outputs.last_hidden_state, p=2, dim=-1)
+        return embeddings, inputs["attention_mask"]
 
-        embeddings = outputs.last_hidden_state
-        embeddings = F.normalize(embeddings, p=2, dim=-1)
-
-        return embeddings
-
-    def calculate_colbert_similarity(self, query_emb, doc_embs, query_mask, doc_masks):
-        """ColBERT相似度计算（MaxSim操作）"""
+    def maxsim(self, query_emb, doc_embs, query_mask, doc_masks):
         scores = []
-
         for i, doc_emb in enumerate(doc_embs):
-            doc_mask = doc_masks[i:i+1]
-
-            # 计算相似度矩阵
-            similarity_matrix = torch.matmul(query_emb, doc_emb.unsqueeze(0).transpose(-2, -1))
-
-            # 应用文档mask
-            doc_mask_expanded = doc_mask.unsqueeze(1)
-            similarity_matrix = similarity_matrix.masked_fill(~doc_mask_expanded.bool(), -1e9)
-
-            # MaxSim操作
-            max_sim_per_query_token = similarity_matrix.max(dim=-1)[0]
-
-            # 应用查询mask
-            query_mask_expanded = query_mask.unsqueeze(0)
-            max_sim_per_query_token = max_sim_per_query_token.masked_fill(~query_mask_expanded.bool(), 0)
-
-            # 求和得到最终分数
-            colbert_score = max_sim_per_query_token.sum(dim=-1).item()
-            scores.append(colbert_score)
-
+            doc_mask = doc_masks[i : i + 1]
+            sim = torch.matmul(query_emb, doc_emb.unsqueeze(0).transpose(-2, -1))
+            sim = sim.masked_fill(~doc_mask.unsqueeze(1).bool(), -1e9)
+            max_sim = sim.max(dim=-1)[0]
+            max_sim = max_sim.masked_fill(~query_mask.unsqueeze(0).bool(), 0)
+            scores.append(max_sim.sum(dim=-1).item())
         return scores
 
     def compress_documents(
@@ -81,114 +92,101 @@ class ColBERTReranker(BaseDocumentCompressor):
         query: str,
         callbacks=None,
     ) -> Sequence[Document]:
-        """对文档进行ColBERT重排序"""
-        if len(documents) == 0:
+        if not documents:
             return documents
 
-        # 编码查询
-        query_inputs = self.tokenizer(
-            [query],
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=128
-        )
-
-        with torch.no_grad():
-            query_outputs = self.model(**query_inputs)
-            query_embeddings = F.normalize(query_outputs.last_hidden_state, p=2, dim=-1)
-
-        # 编码文档
+        query_emb, query_mask = self.encode([query])
         doc_texts = [doc.page_content for doc in documents]
-        doc_inputs = self.tokenizer(
-            doc_texts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=128
-        )
+        doc_emb, doc_masks = self.encode(doc_texts)
 
-        with torch.no_grad():
-            doc_outputs = self.model(**doc_inputs)
-            doc_embeddings = F.normalize(doc_outputs.last_hidden_state, p=2, dim=-1)
-
-        # 计算ColBERT相似度
-        scores = self.calculate_colbert_similarity(
-            query_embeddings,
-            doc_embeddings,
-            query_inputs['attention_mask'],
-            doc_inputs['attention_mask']
-        )
-
-        # 排序并返回前5个
-        scored_docs = list(zip(documents, scores))
-        scored_docs.sort(key=lambda x: x[1], reverse=True)
-        reranked_docs = [doc for doc, _ in scored_docs[:5]]
-
-        return reranked_docs
+        scores = self.maxsim(query_emb, doc_emb, query_mask, doc_masks)
+        ranked = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
+        return [doc for doc, _ in ranked[: self.top_k]]
 
 
+# -----------------------------------------------------------------------------
+# 2. 数据加载与切块
+# -----------------------------------------------------------------------------
 
-# 初始化配置
-hf_bge_embeddings = HuggingFaceBgeEmbeddings(
-    model_name="BAAI/bge-large-zh-v1.5"
-)
+def load_and_split(cfg: Config):
+    loader = TextLoader(str(cfg.data_path), encoding="utf-8")
+    documents = loader.load()
 
-llm = ChatDeepSeek(
-    api_base="https://aihubmix.com/v1",
-    model="deepseek-v3.2", 
-    temperature=0.1, 
-    api_key=os.getenv("DEEPSEEK_API_KEY")
-)
+    splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""],
+        chunk_size=cfg.chunk_size,
+        chunk_overlap=cfg.chunk_overlap,
+    )
+    return splitter.split_documents(documents)
 
-# 1. 加载和处理文档
-loader = TextLoader("./data/ai.txt", encoding="utf-8")
-documents = loader.load()
 
-# 优化分块策略：减少重叠，使用中文友好的分隔符
-text_splitter = RecursiveCharacterTextSplitter(
-    separators=["\n\n", "\n", "。", "！", "？", "；", "，", " ", ""],
-    chunk_size=300,
-    chunk_overlap=20
-)
+# -----------------------------------------------------------------------------
+# 3. 底座组件初始化
+# -----------------------------------------------------------------------------
 
-docs = text_splitter.split_documents(documents)
+def build_components(cfg: Config):
+    embeddings = HuggingFaceBgeEmbeddings(model_name=cfg.embed_model)
+    llm = ChatOpenAI(
+        base_url=cfg.llm_base_url,
+        model=cfg.llm_model,
+        temperature=0.1,
+        api_key=cfg.llm_api_key,
+    )
+    reranker = ColBERTReranker(model_name=cfg.colbert_model, top_k=cfg.rerank_top_k)
+    compressor = LLMChainExtractor.from_llm(llm)
+    return embeddings, reranker, compressor
 
-# 2. 创建向量存储和基础检索器
-vectorstore = FAISS.from_documents(docs, hf_bge_embeddings)
-base_retriever = vectorstore.as_retriever(search_kwargs={"k": 20})
 
-# 3. 设置ColBERT重排序器
-reranker = ColBERTReranker()
+# -----------------------------------------------------------------------------
+# 4. 检索链路构建
+# -----------------------------------------------------------------------------
 
-# 4. 设置LLM压缩器
-compressor = LLMChainExtractor.from_llm(llm)
+def build_retrievers(docs, embeddings, reranker, compressor, cfg: Config):
+    vectorstore = FAISS.from_documents(docs, embeddings)
+    base_retriever = vectorstore.as_retriever(search_kwargs={"k": cfg.retriever_k})
 
-# 5. 使用DocumentCompressorPipeline组装压缩管道
-# 流程: ColBERT重排 -> LLM压缩
-pipeline_compressor = DocumentCompressorPipeline(
-    transformers=[reranker, compressor]
-)
+    pipeline = DocumentCompressorPipeline(transformers=[reranker, compressor])
 
-# 6. 创建最终的压缩检索器
-final_retriever = ContextualCompressionRetriever(
-    base_compressor=pipeline_compressor,
-    base_retriever=base_retriever
-)
+    final_retriever = ContextualCompressionRetriever(
+        base_compressor=pipeline,
+        base_retriever=base_retriever,
+    )
+    return base_retriever, final_retriever
 
-# 7. 执行查询并展示结果
-query = "AI还有哪些缺陷需要克服？"
-print(f"\n{'='*20} 开始执行查询 {'='*20}")
-print(f"查询: {query}\n")
 
-# 7.1 基础检索结果
-print(f"--- (1) 基础检索结果 (Top 20) ---")
-base_results = base_retriever.get_relevant_documents(query)
-for i, doc in enumerate(base_results):
-    print(f"  [{i+1}] {doc.page_content[:100]}...\n")
+# -----------------------------------------------------------------------------
+# 5. 查询执行与展示
+# -----------------------------------------------------------------------------
 
-# 7.2 使用管道压缩器的最终结果
-print(f"\n--- (2) 管道压缩后结果 (ColBERT重排 + LLM压缩) ---")
-final_results = final_retriever.get_relevant_documents(query)
-for i, doc in enumerate(final_results):
-    print(f"  [{i+1}] {doc.page_content}\n")
+def run_query(base_retriever, final_retriever, query: str):
+    print(f"\n{'='*20} 开始执行查询 {'='*20}")
+    print(f"查询: {query}\n")
+
+    print("--- (1) 基础检索结果 (Top 20) ---")
+    base_results = base_retriever.get_relevant_documents(query)
+    for idx, doc in enumerate(base_results, 1):
+        preview = doc.page_content[:100].replace("\n", " ")
+        print(f"  [{idx}] {preview}...\n")
+
+    print("\n--- (2) 管道压缩后结果 (ColBERT重排 + LLM压缩) ---")
+    final_results = final_retriever.get_relevant_documents(query)
+    for idx, doc in enumerate(final_results, 1):
+        print(f"  [{idx}] {doc.page_content}\n")
+
+
+# -----------------------------------------------------------------------------
+# 入口函数
+# -----------------------------------------------------------------------------
+
+def main():
+    cfg = Config()
+    docs = load_and_split(cfg)
+    embeddings, reranker, compressor = build_components(cfg)
+    base_retriever, final_retriever = build_retrievers(
+        docs, embeddings, reranker, compressor, cfg
+    )
+    run_query(base_retriever, final_retriever, cfg.query)
+
+
+if __name__ == "__main__":
+    main()
