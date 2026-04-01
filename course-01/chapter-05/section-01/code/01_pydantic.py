@@ -16,7 +16,7 @@ llm = ChatOpenAI(
     base_url=os.getenv("BASE_URL", ""),
     model=os.getenv("MODEL_NAME", ""), 
     temperature=0.1, 
-    api_key=os.getenv("API_KEY")
+    api_key=os.getenv("API_KEY","")
 )
 
 class PersonInfo(BaseModel):
@@ -29,6 +29,8 @@ parser = PydanticOutputParser(pydantic_object=PersonInfo)
 prompt = PromptTemplate(
     template="请根据以下文本提取信息。\n{format_instructions}\n{text}\n",
     input_variables=["text"],
+    # Explicityly injecting `parser`'s information into `prompt` seems odd
+    # from the perspective of coupling and the overall chain logic.
     partial_variables={"format_instructions": parser.get_format_instructions()},
 )
 

@@ -11,3 +11,5 @@
 - Implementation methods for formatted generation
 
 - Function Calling
+
+> Output processing: Standardizing LLM outputs for downstream applications.

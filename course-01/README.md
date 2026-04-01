@@ -20,16 +20,17 @@
 
 混合检索, 查询构建, Text2SQL, 查询重构与分发, 检索进阶技术.
 
-## [生成集成](./chapter-05/README.md)
+## [Generation Integration](./chapter-05/README.md)
 
-- Formatted Generation
+- [Formatted Generation](./chapter-05/section-01/README.md)
 
-## 
-- [chapter-06: RAG 系统评估](./chapter-06/README.md)
+## Waiting
 
-- [chapter-07: 高级 RAG 架构 (选修)](./chapter-07/README.md)
+[chapter-06: RAG 系统评估](./chapter-06/README.md)
 
-- [chapter-08: 项目实战 (基础篇)](./chapter-08/README.md)
+[chapter-07: 高级 RAG 架构 (选修)](./chapter-07/README.md)
+
+[chapter-08: 项目实战 (基础篇)](./chapter-08/README.md)
 
 ## 必要提醒
 
