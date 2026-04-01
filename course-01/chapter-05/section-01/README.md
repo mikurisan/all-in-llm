@@ -1,89 +1,93 @@
-让 LLM 特定结构的数据, 比如 JSON, XML 等.
+Letting LLMs output secific structured format data (e.g., JSON, XML, etc.)
 
-## 1 为什么需要格式化生成?
+## 1 Why do we need formatted generation?
 
 What can I say?
 
-## 2 格式化生成的实现方法
+## 2 Implementation methods for formatted generation
 
 ### 2.1 Output Parsers
 
-LangChain 中的一个用于处理 LLM output 的组件, 其主要思想是将“如何格式化输出的 instruction“注入到 prompt 中, 并将返回到 output text 解析成预期的格式化数据.
+In LangChain, a component designed to handle LLM output. The core concept is injecting "instructions for formatting the output" into the prompt and parsing the returned text into the expected structured data.
 
-举例几个 parsers:
+Few examples:
 
-- `StrOutputParser`: 将 LLM output 作为 str 返回.
+- `StrOutputParser`: Return the output as string.
 
-- `JsonOutputParser`: 解释 json str.
+- `JsonOutputParser`: Parses the output into a JSON string.
 
-- `PydanticOutputParser`: 与 Pydantic 模型结合, 实现 output format 的严格定义和验证.
+- `PydanticOutputParser`: Integrates with Pydantic models to achieve strict definition and validation of output format.
 
-### 示例代码
+### Example Code
 
-[分析 `PydanticOutputParser` 工作原理. ](./code/01_pydantic.py)
+[Analyzing how `PydanticOutputParser` works. ](./code/01_pydantic.py)
 
-### 2.2 LlamaIndex 的输出解析
+### 2.2 Output Parsing in LlamaIndex
 
-有 2 大核心组件紧密结合, 分别是响应合成 (Response Synthesis) 和结构化输出 (Structured Output).
+Threre are 2 core compoenents that work closely together: **Response Synthesis** and **Structured Output**.
 
-在 RAG 时, retriever 召回一系列文本块 (nodes) 后, 并不是将其简单拼接. Response Synthesizer 会接收这些 nodes 和原始 query, 然后以某种更智能的方式将其传递给 LLM, 例如:
+When retrieving docs for RAG, the systm fetches a series of text chunks(nodes). These aren't just concatenated together. The **Response Synthesizer** takes these nodes and the original query, then passes them to the LLM in smarter ways, such as:
 
-- refine 模式: 逐块处理信息, 并迭代优化 answer.
+- **Refine Mode**: Processes information chunk by chunk and iteratively improves the answer.
 
-- compact 模式: 将尽可能多的 nodes 压缩进单次 LLM 调用
+- **Compact Mode**: Compresses as many nodes as possible into a single LLM call.
 
-该阶段的目标是生成一段高质量的 text answer.
+The goal here is to produce a high-quality text answer.
 
-当需要返回 structured output, 将会使用 pydantic programs, 其思路与 LangChain 相关:
+When structured output is required, Pydantic programs are used. This approach is similar to LangChain:
 
-- 定义 Schema: 定义一个 pydantic model.
+- **Define Schema**: Create a Pydantic model.
 
-- 引导生成: 将 pydantic model 转换为 LLM 能够理解的 formart output instruction. 如果底层 LLM 支持 function calling, 会优先调用.
+- **Guide Generation**: Convert a Pydantic model into a format instruction that the LLM understands. If the LLM supports function calling, that will be used first.
 
-- 解析验证: 解析 text output 并用 pydantic model 进行验证, 返回 pydantic object instance.
+- **Parse & Validate**: Parse the text output, validate it with the Pydantic model, and return a Pydantic object instance.
 
-### 2.3 不依赖框架的简单实现思路
+### 2.3 Simple Implementation without Frameworks
 
-主要就是通过 prompt enginnering:
+The main approach is through prompt engineering:
 
-- 明确要求 JSON format: 直接强硬要求返回 JSON format, 不包含任何解释性 text.
+- **Explicitly Request JSON Format**: Directly and firmly instruct the model to return JSON format only, without any explanatory text.
 
-- 提供 JSON Schema: 在 prompt 中给出指定的 Json Schema, 描述每个 key 的含义和类型.
+- **Provide Json Schema**: Include a specified json schema in the prompt, describing the meaning and type of each key.
 
-- 提供 few-shot examples: 给出几个 "input -> json format output" 的 examples.
+- **Provide Few-Shot Examples**: Give several examples of "input -> json format output".
 
-- 使用语法约束: 一些本地部署的开源 model, 可以使用 GBNF 等语法文件强制约束 model output, 确保生成的每个 token 都严格符合预定义的 JSON 语法. 这是最严格可靠的非 function calling 方法.
+- **Use Grammer Constraits**: For some locally deployed open-source models, you can use grammer files (like GBNF) to strictly constrain the model's output, ensuring every generated token strictly complies with predefined JSON grammar. This is the most rigorous and reliable method without using function calling.
+
+> The essence of frameworks is also about prompt engineering.
 
 ## 3 Function Calling
 
-也称 Tool Calling, 近年来一个重要进展.
+As known as Tool Calling, a recent major development.
 
-### 3.1 概念与工作流程
+### 3.1 Concept and Workflow
 
-其本质是一个多轮对话流程, 让 model, code 和 external tools 之间协同工作. 其核心工作流:
+It's essentially a multi-turn conversation process that corordinates the model, code and external tools. The main workflow is:
 
-1. 定义 tool: 在 code 中以特定 format (通常是 json) 定义好可用的 tools, 包括 tool 的 name, function description 以及需要的 parameters.
+1. **Define Tools**: In code, define available tools in a specific format (usually json), including the tool's name, function description, and required parameters.
 
-2. 用户提问: user 发起一个需要调用 tool 才能回答的 request.
+2. **User Query**: A user makes a request that requires a tool to answer.
 
-3. 模型决策: model 分析 user 的意图, 匹配合适的工具, 返回一个包含 `tool_calls` 的特殊 response.
+3. **Model Decision**: The model analyzes the user's intent, mataches a suitable tool, and returns a special response containing `tool_calls`.
 
-4. 代码执行: 从该 response 中解析出 tool name, parameters, 然后在 code 中实际执行该 tool.
+4. **Code Execution**: Parse the tool name and parameters from that response, and actually execute that tool in the code.
 
-5. 结果反馈: 将工具的执行结果包装为一个 rool 为 tool 的 message, 返回给 model.
+5. **Result Feedback**: Package the tool's execution results as a meesage with the role `tool` and return it to the model.
 
-6. 最终生成: model 结合原始 query 和返回到 tool message, 生成最终 answer.
+6. **Final Generation**: The model combines the original query and the returned tool message to generate the final answer.
 
-### 代码示例
+### Example Code
 
-[模拟 function calling.](./code/02_function_calling_example.py)
+[Simulating function calling.](./code/02_function_calling_example.py)
 
-### 3.2 Function Calling 的优势
+### 3.2 Adavantage of Function Calling
 
-相较于单纯通过 prompt engineering 而言, 其优势在于:
+Compared to relying solely on prompt engineering, its advantages include:
 
-- 可靠性高: model 的原生能力, 得到的 structured format data 更稳定和精确.
+- **High Reliability**: It's a native capability of the model, resulting in more stable and precise structured data output.
 
-- 意图识别: 能够根据 query 选择最合适的工具.
+- **Intent Recognition**: Can select the best appropriate tool based on the user's query.
 
-- 与外部世界交互: 是构建能够实现执行 task 的 agent 的核心基础.
+- **Interaction with the External World**: Forms the core fundation for building agents capable of executing real-world tasks.
+
+> Function calling involves fine-tuning a model to give it this capability.

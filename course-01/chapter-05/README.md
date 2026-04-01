@@ -1,3 +1,13 @@
-## 目录
+<div align="center">
+  <img src="../img/nousresearch.png" width="180" />
+  <br>
+  <h1>RAG</h1>
+</div>
 
-- [格式化生成](./section-01/README.md)
+## [Formatted Generation](./section-01/README.md)
+
+- Why do we need formatted generation?
+
+- Implementation methods for formatted generation
+
+- Function Calling

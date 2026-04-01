@@ -1,52 +1,44 @@
 from typing import List
 import os
+import logging
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 from langchain_core.output_parsers import PydanticOutputParser
-from langchain_deepseek import ChatDeepSeek
+from langchain_openai import ChatOpenAI
 
-# 初始化 LLM
-llm = ChatDeepSeek(
-    api_base="https://aihubmix.com/v1",
-    model="deepseek-v3.2", 
-    temperature=0.1, 
-    api_key=os.getenv("DEEPSEEK_API_KEY")
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
 )
 
-# 1. 定义数据结构
+llm = ChatOpenAI(
+    base_url=os.getenv("BASE_URL", ""),
+    model=os.getenv("MODEL_NAME", ""), 
+    temperature=0.1, 
+    api_key=os.getenv("API_KEY")
+)
+
 class PersonInfo(BaseModel):
     name: str = Field(description="人物姓名")
     age: int = Field(description="人物年龄")
     skills: List[str] = Field(description="技能列表")
 
-# 2. 创建解析器
 parser = PydanticOutputParser(pydantic_object=PersonInfo)
 
-# 3. 创建提示模板
 prompt = PromptTemplate(
     template="请根据以下文本提取信息。\n{format_instructions}\n{text}\n",
     input_variables=["text"],
     partial_variables={"format_instructions": parser.get_format_instructions()},
 )
 
-# 打印格式指令
-print("\n--- Format Instructions ---")
+logging.info("Format Instructions:\n")
 print(parser.get_format_instructions())
-print("--------------------------\n")
 
-# 4. 创建处理链
 chain = prompt | llm | parser
 
-# 5. 定义输入文本并执行调用链
 text = "张三今年30岁，他擅长Python和Go语言。"
 result = chain.invoke({"text": text})
 
-# 6. 打印结果
-print("\n--- 解析结果 ---")
-print(f"结果类型: {type(result)}")
-print(result)
-print("--------------------\n")
-
-print(f"姓名: {result.name}")
-print(f"年龄: {result.age}")
-print(f"技能: {result.skills}")
+logging.info(f"Result type:\n{type(result)}")
+logging.info(f"Result:\n{result}")

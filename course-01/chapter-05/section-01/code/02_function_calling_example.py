@@ -1,23 +1,29 @@
 from openai import OpenAI
 import os
+import logging
 
-# 初始化 OpenAI 客户端
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://aihubmix.com/v1",
+logging.basicConfig(
+    level=logging.INFO,
+    format="[%(asctime)s] %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
 )
 
-# 定义一个函数，用于发送消息并获取模型的响应
+client = OpenAI(
+    api_key=os.getenv("API_KEY"),
+    base_url=os.getenv("BASE_URL", ""),
+)
+
 def send_messages(messages, tools=None):
     response = client.chat.completions.create(
-        model="deepseek-v3.2",
+        model=os.getenv("MODEL_NAME", ""),
         messages=messages,
         tools=tools,
-        tool_choice="auto",  # 让模型自主决定是否调用工具
+        # Let the model decide when to use tools
+        tool_choice="auto",
     )
     return response.choices[0].message
 
-# 1. 定义工具（函数）的 Schema
+# Define function schema
 tools = [
     {
         "type": "function",
@@ -38,34 +44,28 @@ tools = [
     },
 ]
 
-# 1. 用户提问，模型决策调用工具
 messages = [{"role": "user", "content": "杭州今天天气怎么样？"}]
-print(f"User> {messages[0]['content']}\n")
+logging.info(f"User> {messages[0]['content']}")
 message = send_messages(messages, tools=tools)
 
-# 2. 执行工具，并将结果返回模型
 if message.tool_calls:
-    print("--- 模型发起了工具调用 ---")
-    print(f"message 内容: {message.content}")
+    logging.info(f"message 内容: {message.content}")
     tool_call = message.tool_calls[0]
     function_info = tool_call.function
-    print(f"工具名称: {function_info.name}")
-    print(f"工具参数: {function_info.arguments}")
-    # 将模型的回复（包含工具调用请求）添加到消息历史中
+    logging.info(f"工具名称: {function_info.name}")
+    logging.info(f"工具参数: {function_info.arguments}")
+    # Add the model's response (including any tool call requests)
+    # to the message history.
     messages.append(message)
 
-    # 模拟执行工具
+    # Simulating tool execution
     tool_output = "24℃，晴朗"
-    print(f"--- 执行工具并返回结果 ---")
-    print(f"工具执行结果: {tool_output}\n")
+    logging.info(f"工具执行结果: {tool_output}")
 
-    # 将工具的执行结果作为一个新的消息添加到历史中
+    # Add the tool's execution resutls as a new message to the history
     messages.append({"role": "tool", "tool_call_id": tool_call.id, "content": tool_output})
 
-    # 3. 第二次调用：将工具结果返回给模型，获取最终回答
-    print("--- 将工具结果返回给模型，获取最终答案 ---")
     final_message = send_messages(messages, tools=tools)
-    print(f"Model> {final_message.content}")
+    logging.info(f"Model> {final_message.content}")
 else:
-    # 如果模型没有调用工具，直接打印其回答
-    print(f"Model> {message.content}")
+    logging.info(f"Model> {message.content}")
