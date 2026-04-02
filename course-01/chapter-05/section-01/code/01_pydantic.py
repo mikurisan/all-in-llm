@@ -19,6 +19,7 @@ llm = ChatOpenAI(
     api_key=os.getenv("API_KEY","")
 )
 
+# Define an output schema for prompting and validation
 class PersonInfo(BaseModel):
     name: str = Field(description="人物姓名")
     age: int = Field(description="人物年龄")
@@ -34,13 +35,13 @@ prompt = PromptTemplate(
     partial_variables={"format_instructions": parser.get_format_instructions()},
 )
 
-logging.info("Format Instructions:\n")
-print(parser.get_format_instructions())
+logging.info("Format Instructions:")
+logging.info(parser.get_format_instructions())
 
 chain = prompt | llm | parser
 
 text = "张三今年30岁，他擅长Python和Go语言。"
 result = chain.invoke({"text": text})
 
-logging.info(f"Result type:\n{type(result)}")
-logging.info(f"Result:\n{result}")
+logging.info(f"Result type: {type(result)}")
+logging.info(f"Result: {result}")

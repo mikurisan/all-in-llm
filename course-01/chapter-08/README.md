@@ -1,89 +1,89 @@
-## 1 项目背景
+## 1 Project Background
 
-[How To Cook](https://github.com/Anduin2017/HowToCook) 是一个 open-source recipe project, 使用 markdown 记录了各种 recipe 的 cooking methods, 并且 documents 都 strictly 使用了 unified title format.
+[How To Cook](https://github.com/Anduin2017/HowToCook) is an open-source recipe project. It use markdown to record the cooking methods for various recipes, and all documents strictly follow a unified title format.
 
-基于此 start 一个 Recipe QA RAG Project.
+Based on this, we are starting a Recipe RAG Project.
 
-## 2 项目架构
+## 2 Project Architecture
 
-### 2.1 项目目标
+### 2.1 Project Goals
 
-用户可以:
+Users will be able to:
 
-- 询问具体菜品的制作方法
+- Ask for the method to cook a specific dish.
 
-- 寻求菜品推荐
+- Request dish recommendations.
 
-- 获取食材信息
+- Get information about ingredients.
 
-### 2.2 数据分析
+### 2.2 Data Analysis
 
-#### 2.2.1 文档分析
+#### 2.2.1 Document Analysis
 
-"How to cook" project 包含超 300 多个的 markdown recipe files, 其 content 也是 well-structured 和 concise, 很适合 structural segmentation.
+"How to cook" project contains over 300 markdown recipe files. The content is well-structured and concise, making it suitable for structural segmentation.
 
-#### 2.2.2 结构分块局限
+#### 2.2.2 Limitations of Structural Chunking
 
-按照标题结构分块会将 conten 分割得太细, 导致 context 不完整, 从而无法给出 perfect answer.
+Splitting content purely based on headings can lead to overly granular chunks. This fragments the context, resulting in incomplete information being retrieved. An incomplete context makes it difficult for the LLM to provide a perfect answer.
 
-为了解决这一矛盾, 可采用父子文本块策略: 使用小的子 chunk 进行 retrieval, 然后传递整个 document 给 LLM.
+To address this issue, a parent-child chunking strategy can be employed: smaller child chunks are used for retrieval, but once retrieved, the entire parent document (or a larger containing section) is passed to the LLM for context.
 
-为什么直接用整个 document 进行 retrieval 的原因在于, query 如果在整个 document 的占比很小, 会导致 retrieval 的 precision 降低, 从而影响 retrieval 的结果.
+The reason for not using the entire document directly for retrieval is that if the user's query relates to only a small part of a large document, retrieval precision decreases. The relevant information may get lost among less relevant text, negatively impacting the retrieval results.
 
-### 2.3 整体架构
+### 2.3 Overall Architecture
 
-略.
+Skipped.
 
-### 2.4 项目结构
+### 2.4 Project Structure
 
 ```text
 code
-├── config.py                   # 配置管理
-├── main.py                     # 主程序入口
-├── requirements.txt            # 依赖列表
-├── rag_modules/               # 核心模块
+├── config.py                   # Config management
+├── main.py                     # Main program entry point
+├── requirements.txt            # Dependencies list
+├── rag_modules/               # Core modules
 │   ├── __init__.py
-│   ├── data_preparation.py    # 数据准备模块
-│   ├── index_construction.py  # 索引构建模块
-│   ├── retrieval_optimization.py # 检索优化模块
-│   └── generation_integration.py # 生成集成模块
-└── vector_index/              # 向量索引缓存 (自动生成)
+│   ├── data_preparation.py    # Data preparation module
+│   ├── index_construction.py  # Index construction module
+│   ├── retrieval_optimization.py # Retrieval optimization module
+│   └── generation_integration.py # Generation & Integration modules
+└── vector_index/              # Vector index cache (auto-generated)
 ```
 
-## 3 "数据准备模块"实现
+## 3 Implementation of the "Data Preparation Module"
 
-父子 chunk 映射 relationship:
+Parent-Child Chunk Relationship:
 
 ```
-父 chunk (完整 document)
-├── 子 chunk 1: 菜品介绍 + 难度评级
-├── 子 chunk 2: 必备原料和工具
-├── 子 chunk 3: 计算 (用量配比)
-├── 子 chunk 4: 操作 (制作步骤)
-└── 子 chunk 5: 附加内容 (变化做法)
+Parent Chunk (Complete Document)
+├── Child Chunk 1: Dish Introduction + Difficulty Rating
+├── Child Chunk 2: Required Ingredients & Tools
+├── Child Chunk 3: Calculation (Quantities & Ratios)
+├── Child Chunk 4: Operations (Step-by-step Instructions)
+└── Child Chunk 5: Additional Content (Variations)
 ```
 
-基本流程:
+Basic Process:
 
-- Retrieval: 使用子 chunk 进行匹配, 提高 retrieval precision.
+- **Retrieval**: Use child chunk for matching to improve retrieval precision.
 
-- Generation: 传递完整的父 document 给 LLM, 提供丰富 context.
+- **Generation**: Pass the complete parent document to the LLM to provide rich context.
 
-- Deduplication: 若多个 chunks 同属一个父级, 则进行 merge.
+- **Deduplication**: If multiple retireved chunks belong to the same parent, merge them.
 
 Metadata Enhancement:
 
-- 菜品分类: 从文件路径推断
+- **Dish Category**: Inferred from the file path.
 
-- 难度等级: 从 document content 中提取.
+- **Difficulty Level**: Extracted from the document content.
 
-- 菜品名称: 从 file name 提取.
+- **Dish Name**: Extracted from the filename.
 
-- 文档关系: 建立父子 document 的 ID mapping relationship.
+- **Document Relationships**: Establish ID mapping relationships between parent and child document.
 
-### 代码示例
+### Example Code
 
-[“数据准备模块“实现](./code/rag_modules/data_preparation.py)
+[Implementation of the "Data Preparation Module"](./code/rag_modules/data_preparation.py)
 
 ## 4 索引构建与检索优化
 

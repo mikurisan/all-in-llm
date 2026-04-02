@@ -1,7 +1,3 @@
-"""
-RAG系统主程序
-"""
-
 import os
 import sys
 import logging
@@ -51,8 +47,8 @@ class RecipeRAGSystem:
             raise FileNotFoundError(f"数据路径不存在: {self.config.data_path}")
 
         # 检查API密钥
-        if not os.getenv("DEEPSEEK_API_KEY"):
-            raise ValueError("请设置 DEEPSEEK_API_KEY 环境变量")
+        if not os.getenv("API_KEY"):
+            raise ValueError("请设置 API_KEY 环境变量")
     
     def initialize_system(self):
         """初始化所有模块"""

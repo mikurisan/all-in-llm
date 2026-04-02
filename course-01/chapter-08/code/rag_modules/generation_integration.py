@@ -7,7 +7,7 @@ import logging
 from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from langchain_deepseek import ChatDeepSeek
+from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
@@ -39,12 +39,12 @@ class GenerationIntegrationModule:
         """初始化大语言模型"""
         logger.info(f"正在初始化LLM: {self.model_name}")
 
-        api_key = os.getenv("DEEPSEEK_API_KEY")
+        api_key = os.getenv("API_KEY")
         if not api_key:
-            raise ValueError("请设置 DEEPSEEK_API_KEY 环境变量")
+            raise ValueError("请设置 API_KEY 环境变量")
 
-        self.llm = ChatDeepSeek(
-            api_base="https://aihubmix.com/v1",
+        self.llm = ChatOpenAI(
+            base_url="https://aihubmix.com/v1",
             model=self.model_name,
             temperature=self.temperature,
             max_tokens=self.max_tokens,
