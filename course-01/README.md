@@ -22,7 +22,11 @@
 
 ## [Generation Integration](./chapter-05/README.md)
 
-- [Formatted Generation](./chapter-05/section-01/README.md)
+## [Formatted Generation](./chapter-05/section-01/README.md)
+
+## [Project Practicals (Fundamental Level)](./chapter-08/README.md)
+
+A basic RAG project to grasp the workflow and architecture.
 
 ## Waiting
 
@@ -30,7 +34,6 @@
 
 [chapter-07: 高级 RAG 架构 (选修)](./chapter-07/README.md)
 
-[chapter-08: 项目实战 (基础篇)](./chapter-08/README.md)
 
 ## 必要提醒
 

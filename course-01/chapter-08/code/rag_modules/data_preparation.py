@@ -174,7 +174,7 @@ class DataPreparationModule:
         returns:
             a list of chunked documents with basic metadata
         """
-        logger.info("Markdown structure-aware chunking in progress ...")
+        logger.info("Chunking documents ...")
 
         if not self.documents:
             raise ValueError("Load the document first.")
@@ -188,7 +188,7 @@ class DataPreparationModule:
             chunk.metadata['chunk_size'] = len(chunk.page_content)
 
         self.chunks = chunks
-        logger.info("Markdown chunking completed. Generated a total of %d chunks",len(chunks))
+        logger.info("Successfully chunked a total of %d chunks",len(chunks))
         return chunks
 
     def _markdown_header_split(self) -> List[Document]:
@@ -249,7 +249,7 @@ class DataPreparationModule:
                 logger.warning("Document %s splitted failed.", e)
                 all_chunks.append(doc)
 
-        logger.info("Successfully splitted documents. Generated %d chunks", len(all_chunks))
+        logger.info("Successfully splitted %d chunks", len(all_chunks))
 
         return all_chunks
 
@@ -316,7 +316,7 @@ class DataPreparationModule:
         with path.open("w", encoding="utf-8") as f:
             json.dump(metadata_list, f, ensure_ascii=False, indent=2)
 
-        logger.info("Metadata exported to: %s", path)
+        logger.info("Successfully exported metadata to: %s", path)
 
     def get_parent_documents(self, child_chunks: List[Document]) -> List[Document]:
         """Get the corresponding parent document by child chunk (smart deduplication)

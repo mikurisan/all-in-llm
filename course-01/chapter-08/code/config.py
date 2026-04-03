@@ -1,7 +1,6 @@
-"""
-RAG系统配置文件
-"""
+import os
 
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, Any
 
@@ -9,41 +8,47 @@ from typing import Dict, Any
 class RAGConfig:
     """RAG系统配置类"""
 
-    # 路径配置
+    # path config
     data_path: str = "./data"
     index_save_path: str = "./vector_index"
 
-    # 模型配置
+    # model config
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
-    llm_model: str = "deepseek-v3.2"
+    model_name: str = os.getenv("MODEL_NAME", "")
+    api_key: str = os.getenv("API_KEY", "")
+    base_url: str = os.getenv("BASE_URL", "")
 
-    # 检索配置
+    # retrieval config
     top_k: int = 3
 
-    # 生成配置
+    # generation config
     temperature: float = 0.1
     max_tokens: int = 2048
 
     def __post_init__(self):
-        """初始化后的处理"""
-        pass
-    
+        if not self.model_name:
+            raise ValueError("MODEL_NAME is required but not provided.")
+        if not self.api_key:
+            raise ValueError("API_KEY is required but not provided.")
+        if not self.base_url:
+            raise ValueError("BASE_URL is required but not provided.")
+        
+        if not Path(self.data_path).exists():
+            raise FileNotFoundError(f"Data path does not exist: {self.data_path}")
+
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'RAGConfig':
-        """从字典创建配置对象"""
         return cls(**config_dict)
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
         return {
             'data_path': self.data_path,
             'index_save_path': self.index_save_path,
             'embedding_model': self.embedding_model,
-            'llm_model': self.llm_model,
+            'model_name': self.model_name,
             'top_k': self.top_k,
             'temperature': self.temperature,
             'max_tokens': self.max_tokens
         }
 
-# 默认配置实例
 DEFAULT_CONFIG = RAGConfig()

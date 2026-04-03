@@ -1,7 +1,3 @@
-"""
-索引构建模块
-"""
-
 import logging
 from typing import List
 from pathlib import Path
@@ -13,16 +9,19 @@ from langchain_core.documents import Document
 logger = logging.getLogger(__name__)
 
 class IndexConstructionModule:
-    """索引构建模块 - 负责向量化和索引构建"""
+    """Responsible for vectorization and indexing construction
 
-    def __init__(self, model_name: str = "BAAI/bge-small-zh-v1.5", index_save_path: str = "./vector_index"):
-        """
-        初始化索引构建模块
+    attrs:
+        model_name: embedding model name
+        index_save_paath: local path for storing indexes
+        embeddings: embedding model obejct
+        vectorstore:
+    """
 
-        Args:
-            model_name: 嵌入模型名称
-            index_save_path: 索引保存路径
-        """
+    def __init__(
+        self, model_name: str = "BAAI/bge-small-zh-v1.5",
+        index_save_path: str = "./vector_index"
+    ):
         self.model_name = model_name
         self.index_save_path = index_save_path
         self.embeddings = None
@@ -30,80 +29,75 @@ class IndexConstructionModule:
         self.setup_embeddings()
     
     def setup_embeddings(self):
-        """初始化嵌入模型"""
-        logger.info(f"正在初始化嵌入模型: {self.model_name}")
-        
+        """Initialize embedding model"""
+        logger.info("Initializing embedding model %s.", self.model_name)
+
         self.embeddings = HuggingFaceEmbeddings(
             model_name=self.model_name,
             model_kwargs={'device': 'cpu'},
             encode_kwargs={'normalize_embeddings': True}
         )
         
-        logger.info("嵌入模型初始化完成")
+        logger.info("Successfully initialized embedding model.")
     
     def build_vector_index(self, chunks: List[Document]) -> FAISS:
         """
-        构建向量索引
-        
-        Args:
-            chunks: 文档块列表
+        args:
+            chunks: list of document chunks
             
-        Returns:
-            FAISS向量存储对象
+        returns:
+            FAISS vector store object
         """
-        logger.info("正在构建FAISS向量索引...")
+        logger.info("Building FAISS vector index...")
         
         if not chunks:
-            raise ValueError("文档块列表不能为空")
+            raise ValueError("The list of document chunks must not be empty.")
         
-        # 构建FAISS向量存储
         self.vectorstore = FAISS.from_documents(
             documents=chunks,
             embedding=self.embeddings
         )
         
-        logger.info(f"向量索引构建完成，包含 {len(chunks)} 个向量")
+        logger.info("Successfully construct vector index, containing %d vectors.", len(chunks))
+
         return self.vectorstore
     
     def add_documents(self, new_chunks: List[Document]):
-        """
-        向现有索引添加新文档
+        """Add new documents to existing index
         
-        Args:
-            new_chunks: 新的文档块列表
+        args:
+            new_chunks: a list of new document chunks
         """
         if not self.vectorstore:
-            raise ValueError("请先构建向量索引")
+            raise ValueError("Please construct vector index first")
         
-        logger.info(f"正在添加 {len(new_chunks)} 个新文档到索引...")
+        logger.info("Adding %d new document chunks to index...", len(new_chunks))
+
         self.vectorstore.add_documents(new_chunks)
-        logger.info("新文档添加完成")
+
+        logger.info("Successfully added new documents.")
 
     def save_index(self):
-        """
-        保存向量索引到配置的路径
-        """
         if not self.vectorstore:
-            raise ValueError("请先构建向量索引")
+            raise ValueError("Please construct vector index first")
 
-        # 确保保存目录存在
         Path(self.index_save_path).mkdir(parents=True, exist_ok=True)
 
         self.vectorstore.save_local(self.index_save_path)
-        logger.info(f"向量索引已保存到: {self.index_save_path}")
+
+        logger.info("Successfully saved vector index in: %s", self.index_save_path)
     
     def load_index(self):
-        """
-        从配置的路径加载向量索引
+        """Load vector index from local path
 
-        Returns:
-            加载的向量存储对象，如果加载失败返回None
+        returns:
+            loaded vector store object
         """
         if not self.embeddings:
             self.setup_embeddings()
 
         if not Path(self.index_save_path).exists():
-            logger.info(f"索引路径不存在: {self.index_save_path}，将构建新索引")
+            logger.info("Local index path doesn't exist: %s, building a new vector index...", self.index_save_path)
             return None
 
         try:
@@ -112,24 +106,24 @@ class IndexConstructionModule:
                 self.embeddings,
                 allow_dangerous_deserialization=True
             )
-            logger.info(f"向量索引已从 {self.index_save_path} 加载")
+            logger.info("Successfully loaded vector index from local path: %s", self.index_save_path)
+
             return self.vectorstore
+        
         except Exception as e:
-            logger.warning(f"加载向量索引失败: {e}，将构建新索引")
+            logger.warning("Loaded vector index failed: %s, building a new vector index...", e)
             return None
     
     def similarity_search(self, query: str, k: int = 5) -> List[Document]:
         """
-        相似度搜索
-        
-        Args:
-            query: 查询文本
-            k: 返回结果数量
+        args:
+            query: query text
+            k: number of returned results
             
-        Returns:
-            相似文档列表
+        returns:
+            list of similar documents
         """
         if not self.vectorstore:
-            raise ValueError("请先构建或加载向量索引")
+            raise ValueError("Construc or load the vector index first.")
         
         return self.vectorstore.similarity_search(query, k=k)

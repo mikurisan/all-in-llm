@@ -67,9 +67,9 @@ Basic Process:
 
 - **Retrieval**: Use child chunk for matching to improve retrieval precision.
 
-- **Generation**: Pass the complete parent document to the LLM to provide rich context.
-
 - **Deduplication**: If multiple retireved chunks belong to the same parent, merge them.
+
+- **Generation**: Pass the complete parent document to the LLM to provide rich context.
 
 Metadata Enhancement:
 
@@ -85,60 +85,70 @@ Metadata Enhancement:
 
 [Implementation of the "Data Preparation Module"](./code/rag_modules/data_preparation.py)
 
-## 4 索引构建与检索优化
+## 4 Index Construction & Retrieval Optimization
 
-### 4.1 索引构建
+### 4.1 Building the Index
 
-选择 BGE-small-zh-v1.5 作为 embedding model, 使用 FAISS 作为 vector database.
+- Using BGE-small-zh-v1.5 model to create embedding.
 
-为了提升启动速度, 构建后的 index 会保存到本地.
+- Using FAISS as the vector database.
 
-### 4.2 混合检索
+- To make startup faster, saving the built index locally to a file.
 
-采用 vector 和 keyword 的混合检索方式, 使用 RPF (Reciprocal Rank Fusion) 融合 retrieval result.
+### 4.2 Hybrid Retrieval
 
-此外, system 还支持基于 metadata 的智能过滤.
+- Combining 2 search methods:
 
-### 代码示例
+    1. Vector Search
 
-[“索引构建模块”实现](./code/rag_modules/index_construction.py)
+    2. Keyword Search
 
-["检索优化模块“实现](./code/rag_modules/retrieval_optimization.py)
+- Merging the results from both methods using RPF (Reciprocal Rank Fusion).
 
-## 5 生成集成
+- The system also supports smart filtering using metadata.
 
-负责理解用户意图, 路由查询类型, 并生成高质量 answer.
+### Example Code
 
-### 5.1 设计思路
+["Index Construction Module" Implementation](./code/rag_modules/index_construction.py)
 
-- 智能查询路由: 根据用户 query 自动判断是列表查询, 详细查询还是一般查询.
+["Retrieval Optimization Module" Implementation](./code/rag_modules/retrieval_optimization.py)
 
-- 查询重写优化: 对模糊不清的 query 进行重写.
+## 5 Generation Integration
 
-- 多模式生成: 
+Responsible for unerstanding user intent, routing query types, and generating high-quality answers.
 
-    - 列表模式: 适用于推荐类 query, 返回简介的 recipe list
+### 5.1 Design Approach
 
-    - 详细模式: 适用于制作类 query, 提供分步骤的详细指导.
+- **Intelligent Query Routing**: Automatically determines whether the query is a list query, detail query, or general query.
 
-    - 基础模式: 适用于一般性 query, 提供常规回答.
+- **Query Rewrite & Optimization**: Rewrite ambiguous or unclear queries.
 
-### 代码示例
+- **Multi-Mode Generation**:
 
-[“生成集成模块“实现](./code/rag_modules/generation_integration.py)
+    - **List Mode**: Suitable for recommendation-type queries, returns a concise recipe list.
 
-## 6 系统整合
+    - **Detail Mode**: Suitable for instructional/creation-type queries, returns a detailed step-by-step guidance.
 
-负责协调各个 module, 实现 “数据准备 -> 索引构建 -> 检索优化 -> 生成集成“ 的完整 RAG 流程. 提供索引缓存, 交互式问答等功能.
+    - **Basic Mode**: Suitable for general queries, provide standard responses.
 
-### 示例代码
+### Example Code
 
-["系统整合“实现](./code/main.py)
+["Generation Integration Module" Implementation](./code/rag_modules/generation_integration.py)
 
-## 7 优化方向
+## 6 System Integration
 
-- 集成图数据库: 将 recipe data 构建为知识图谱, 以此揭示食材, 菜品与烹饪方法间的复杂关联. 进而支持复杂的关系查询, 发掘潜在的食材组合, 实现基于图的智能推荐.
+Coordinates all modules to achieve the full RAG workflow: "data preparation -> index construction -> retrieval optimization -> generation integration". Provides index caching and interactive QA functionality.
 
-- 融合多模态数据: 组合菜品图片等视觉信息, 利用多模态 model 进行图文联合 retrieval. 或者通过图像识别食材来推荐相关 recipe.
+### Example Code
 
-- 增强专业知识: 比如集成营养成份数据库, 烹饪技巧知识图谱, 以及食材替换规则等外部知识源. 从而, 提供营养分析, 烹饪指导, 并灵活适应用户的饮食习惯和偏好.
+["System Integration" Implementation](./code/main.py)
+
+## 7 Optimization Direction
+
+- **Integrate a Graph Database**: Construct recipe data into a knowledge graph to reveal complex relationships between ingredients, dishes, and cooking methods. This supports complex relational queries, uncovers potential ingredients combinations, and enables graph-based intelligent recommendations.
+
+- **Incorporate Multimodal Data**: Combine visual information like dish images and use multimodal models for joint text-image retrieval. Alternatively, utilize image recognition to identify ingredients and recommend relevant recipes.
+
+- **Enhance Domain-Specific Knowledge**: Integrate external knowledge base such as nutritional databases, cooking technique knowledge graphs, and ingredient substitution rules. This enables nutritional analysis, cooking guidance, and flexible adaptation to user dietary habits and preferences.
+
+> This recipe RAG project is poorly implemented and has numerous optimization opportunities. It is only useful for understanding the basic architecture and workflow of a simple RAG project.
