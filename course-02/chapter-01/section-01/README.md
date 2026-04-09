@@ -1,6 +1,6 @@
 ## 1.1 What is an Agent?
 
-Definition with AI: any entity that can perceive its **environment** through **sensors**, and automatically take **actions** through **actuators** to achieve specific goals.
+Definition within AI: any entity that can perceive its **environment** through **sensors**, and automatically take **actions** through **actuators** to achieve specific goals.
 
 The key here is **autonomy**: ability to make independent decisions based on external perception and internal state, not strictly executing preset instructions.
 

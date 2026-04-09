@@ -6,4 +6,4 @@
 
 ## [RAG](./course-01/README.md)
 
-## [Agent](./)
+## [Agent](./course-02/README.md)
